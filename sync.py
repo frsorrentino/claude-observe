@@ -1,0 +1,75 @@
+#!/usr/bin/env python3
+"""sync.py <plugin-root> — mette la copia di claude-observe in un plugin.
+
+Il plugin deve avere <plugin-root>/observe/tool.json (la sua voce: nome, repo, match…). sync.py:
+1. copia observe.py in <plugin-root>/observe/ e scrive observe/SOURCE (commit della fonte e sha256 della copia);
+2. inserisce in <plugin-root>/hooks/hooks.json due voci: PostToolUseFailure con un matcher stretto, costruito da
+   tool.json (i prefissi mcp; «Bash» se il plugin ha comandi), e SessionStart. Idempotente: le voci che puntano a
+   observe/observe.py vengono sostituite, le altre restano come sono.
+"""
+import hashlib
+import json
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+SRC = Path(__file__).resolve().parent
+CMD = 'python3 "${CLAUDE_PLUGIN_ROOT}/observe/observe.py"'
+
+
+def sha(p):
+    return hashlib.sha256(Path(p).read_bytes()).hexdigest()
+
+
+def matcher(tool):
+    m = tool.get("match") or {}
+    parts = [re.escape(p) + ".*" for p in m.get("mcp") or [] if p]
+    if m.get("bash"):
+        parts.append("Bash")
+    return "|".join(parts)
+
+
+def main(argv):
+    if len(argv) != 1:
+        print(__doc__.strip().splitlines()[0], file=sys.stderr)
+        return 2
+    root = Path(argv[0]).resolve()
+    tool_json = root / "observe" / "tool.json"
+    try:
+        tool = json.loads(tool_json.read_text())
+    except (OSError, ValueError) as e:
+        print(f"sync: {tool_json}: {e}", file=sys.stderr)
+        return 1
+    # SOURCE registra un commit: la copia deve essere quel commit, non un working tree modificato (23/09: una copia
+    # presa da una fonte non committata portava in SOURCE un commit con byte diversi)
+    dirty = subprocess.run(["git", "-C", str(SRC), "status", "--porcelain", "--", "observe.py"], capture_output=True, text=True).stdout.strip()
+    if dirty:
+        print(f"sync: {SRC / 'observe.py'} ha modifiche non committate: committa la fonte prima di copiarla", file=sys.stderr)
+        return 1
+    shutil.copyfile(SRC / "observe.py", root / "observe" / "observe.py")
+    commit = subprocess.run(["git", "-C", str(SRC), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    (root / "observe" / "SOURCE").write_text(json.dumps({"source": "https://github.com/frsorrentino/claude-observe",
+                                                        "commit": commit, "sha256": {"observe.py": sha(SRC / "observe.py")}},
+                                                       indent=2) + "\n")
+    hooks_f = root / "hooks" / "hooks.json"
+    hooks_f.parent.mkdir(exist_ok=True)
+    doc = json.loads(hooks_f.read_text()) if hooks_f.exists() else {"hooks": {}}
+    hooks = doc.setdefault("hooks", {})
+    for ev in ("PostToolUseFailure", "SessionStart"):
+        hooks[ev] = [e for e in hooks.get(ev, []) if not any("/observe/observe.py" in h.get("command", "") for h in e.get("hooks", []))]
+    mt = matcher(tool)
+    if mt:
+        hooks["PostToolUseFailure"].append({"matcher": mt, "hooks": [{"type": "command", "command": f"{CMD} hook", "timeout": 5}]})
+    hooks["SessionStart"].append({"hooks": [{"type": "command", "command": f"{CMD} session-start", "timeout": 10}]})
+    for ev in ("PostToolUseFailure", "SessionStart"):
+        if not hooks.get(ev):
+            hooks.pop(ev, None)   # un plugin di sole skill: nessuna voce vuota nel suo hooks.json
+    hooks_f.write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n")
+    print(f"sync: {tool.get('name')} → {root / 'observe'} (commit {commit[:10] or '?'}), hooks: {mt or 'solo SessionStart'}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
