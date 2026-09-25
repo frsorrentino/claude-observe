@@ -67,3 +67,11 @@ yes to the channel `tool.json` → `security` names: `advisory` = `POST /repos/<
 through `gh` (the repository needs «Private vulnerability reporting» on), or without `gh` the page
 `https://github.com/<repo>/security/advisories/new` to paste the text into; a `mailto:` or URL = printed with the
 text. Sent records get `status` `reported` and `reported` = the advisory URL or the address. No channel: refused.
+
+## The anonymous path
+
+`report --send HASH --anonymous` (the «Send anonymously» button) does one `POST` to `observe.endpoint` (config; empty =
+the option is not offered) with `Content-Type: application/json` and exactly these fields: `plugin`, `version` (the
+plugin's, or null), `security` (bool), `severity` (`high` or null), `title` and `body` — the anonymized draft, nothing
+else. The service answers JSON with `url` (the issue it opened); the records are marked `reported` with it. `report
+--later` («Not now») silences both offers for `propose_every_days`.

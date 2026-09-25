@@ -36,6 +36,7 @@ OB26 lock occupato oltre l'attesa: la voce va in <plugin>.pending.jsonl e il pro
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -252,7 +253,8 @@ esac
 
 
 def sent_hash(out):
-    return out.strip().split()[-1]
+    m = re.search(r"(?:Hash della bozza|Draft hash): ([0-9a-f]{10})", out)
+    return m.group(1) if m else out.strip().split()[-1]
 
 
 def reset_status():
@@ -608,6 +610,81 @@ seed((0, None), (0, None), (0, None))
 lc, _ = stop_line(home / "ws" / "clienti" / "acme-shop", tool=CM)
 check("OB27 at propose_after → the line, with the count", "3 osservazioni su claude-master" in lc and "/claude-master:observe send" in lc, lc)
 CMJ.unlink()
+
+# OB29 (25/09): la domanda all'utente — tre opzioni con observe.endpoint, due senza; la security mai «dal mio GitHub»
+# (pubblica); l'invio anonimo = POST JSON all'endpoint con bozza, plugin, versione e flag; «Non ora» tace per 7 giorni
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+EP = {"posts": []}
+
+
+class EPH(BaseHTTPRequestHandler):
+    def log_message(self, *a):
+        pass
+
+    def do_POST(self):
+        n = int(self.headers.get("Content-Length") or 0)
+        EP["posts"].append((self.path, json.loads(self.rfile.read(n) or b"{}")))
+        out = json.dumps({"url": "https://github.com/frsorrentino/chrome-bridge/issues/123"}).encode()
+        self.send_response(200); self.send_header("Content-Type", "application/json"); self.send_header("Content-Length", str(len(out))); self.end_headers(); self.wfile.write(out)
+
+
+ep_srv = ThreadingHTTPServer(("127.0.0.1", 0), EPH)
+threading.Thread(target=ep_srv.serve_forever, daemon=True).start()
+EP_URL = f"http://127.0.0.1:{ep_srv.server_port}/observe"
+
+
+def opts_of(out):
+    return [json.loads(l) for l in out.splitlines() if l.startswith("{") and '"label"' in l]
+
+
+fake_gh()
+cfg.write_text(json.dumps(BASE))
+obs("add", "chrome-bridge", "nota normale per le opzioni")
+o2 = opts_of(obs("report", "chrome-bridge").stdout)
+cfg.write_text(json.dumps({**BASE, "endpoint": EP_URL}))
+d29 = obs("report", "chrome-bridge").stdout
+o3 = opts_of(d29)
+check("OB29 without observe.endpoint the draft offers two options (Invia dal mio GitHub, Non ora); with it three (plus Invia in forma anonima), each with a one-line description and a command; the tail says AskUserQuestion",
+      [o["label"] for o in o2] == ["Invia dal mio GitHub", "Non ora"] and [o["label"] for o in o3] == ["Invia dal mio GitHub", "Invia in forma anonima", "Non ora"]
+      and all(o["description"] and o["command"] for o in o3) and "AskUserQuestion" in d29 and "chrome-bridge --send" in o3[0]["command"] and o3[1]["command"].endswith("--anonymous") and o3[2]["command"].endswith("--later"), json.dumps(o2) + json.dumps(o3) + d29[-400:])
+fake_gh(auth=False)
+o3b = opts_of(obs("report", "chrome-bridge").stdout)
+check("OB29 without gh the first option says it opens a link in the browser", "browser" in o3b[0]["description"] and "link" in o3b[0]["description"], json.dumps(o3b))
+fake_gh()
+obs("add", "chrome-bridge", "sec per le opzioni", "--security")
+ds = obs("report", "chrome-bridge", "--security").stdout
+os_ = opts_of(ds)
+check("OB29 a security draft never offers «Invia dal mio GitHub» (public): anonymous (endpoint), private advisory from own GitHub, Non ora",
+      [o["label"] for o in os_] == ["Invia in forma anonima", "Invia in privato dal mio GitHub", "Non ora"] and all("--security" in o["command"] for o in os_), json.dumps(os_))
+cfg.write_text(json.dumps(BASE))
+os2 = opts_of(obs("report", "chrome-bridge", "--security").stdout)
+check("OB29 security without endpoint: private advisory and Non ora only", [o["label"] for o in os2] == ["Invia in privato dal mio GitHub", "Non ora"], json.dumps(os2))
+cfg.write_text(json.dumps({**BASE, "endpoint": EP_URL}))
+h29 = sent_hash(d29)
+before29 = gh_log.read_text()
+a29 = obs("report", "chrome-bridge", "--send", h29, "--anonymous")
+post = EP["posts"][-1] if EP["posts"] else None
+check("OB29 «Invia in forma anonima» → one POST JSON to observe.endpoint with exactly plugin, version, security, severity, title, body (the anonymized draft), no gh call; the records reported with the URL returned",
+      a29.returncode == 0 and post and post[0] == "/observe" and set(post[1]) == {"plugin", "version", "security", "severity", "title", "body"} and post[1]["plugin"] == "chrome-bridge"
+      and post[1]["security"] is False and post[1]["title"].startswith("[chrome-bridge] field observations") and "nota normale per le opzioni" in post[1]["body"]
+      and gh_log.read_text() == before29 and "issues/123" in a29.stdout and any(x.get("reported", "").endswith("issues/123") for x in recs("chrome-bridge")), a29.stdout + a29.stderr + json.dumps(post)[:300])
+hs = sent_hash(ds)
+as_ = obs("report", "chrome-bridge", "--security", "--send", hs, "--anonymous")
+check("OB29 a security observation sent anonymously carries security true and never touches gh", as_.returncode == 0 and EP["posts"][-1][1]["security"] is True and gh_log.read_text() == before29, as_.stdout + as_.stderr)
+cfg.write_text(json.dumps(BASE))
+obs("add", "chrome-bridge", "altra nota")
+d29c = obs("report", "chrome-bridge").stdout
+r29c = obs("report", "chrome-bridge", "--send", sent_hash(d29c), "--anonymous")
+check("OB29 --anonymous with observe.endpoint empty → refused (4), nothing sent", r29c.returncode == 4 and "observe.endpoint" in r29c.stderr and not EP["posts"][-1][1]["body"].count("altra nota"), r29c.stdout + r29c.stderr)
+for f in list(box.glob(".shown-*")) + list(box.glob(".proposed-*")):
+    f.unlink()
+obs("add", "chrome-bridge", "nota grave", "--severity", "high")
+l29 = obs("report", "chrome-bridge", "--later")
+line29, _ = stop_line(home / "ws" / "clienti" / "acme-shop")
+p29 = start(home / "ws" / "clienti" / "acme-shop", tool=CB)
+check("OB29 «Non ora» (report --later) → the offer is silent for propose_every_days: no Stop line, no SessionStart offer", l29.returncode == 0 and "torna fra 7 giorni" in l29.stdout and line29 == "" and "DA INVIARE" not in p29, l29.stdout + line29 + p29)
+ep_srv.shutdown()
 
 # OB28 (25/09): sync.py genera commands/observe.md (uniforme) e la voce Stop; un comando scritto a mano resta
 sync28 = subprocess.run([sys.executable, str(SRC1 / "sync.py"), str(plug2)], capture_output=True, text=True)

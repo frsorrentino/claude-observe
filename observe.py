@@ -39,7 +39,9 @@ additionalContext dell'hook, l'aggiramento registrato o «risolto in X: aggiorna
 voce `known` del registro distribuita col plugin) non si propone come issue.
 """
 import platform
+import urllib.error
 import urllib.parse
+import urllib.request
 import glob
 try:
     import fcntl   # non c'e' su Windows: li' resta il solo lock a cartella
@@ -63,7 +65,10 @@ VERBS = {"arm", "list", "show", "add", "mark", "export", "report", "hook", "stat
          "open", "close", "check"}
 CLASSES = ("D", "L", "S", "done", "new")
 DEFAULTS = {"enabled": True, "dir": "", "max_records": 2000, "max_days": 90, "anonymizer": "", "blocklist": "",
-            "propose": True, "propose_after": 3, "propose_after_days": 3, "propose_every_days": 7, "language": "", "tools": {}}
+            "propose": True, "propose_after": 3, "propose_after_days": 3, "propose_every_days": 7, "language": "", "tools": {},
+            # l'invio anonimo (25/09/2026): l'endpoint del nostro sito che apre la issue con l'account di servizio, senza il
+            # nome dell'utente; vuoto = l'opzione non compare
+            "endpoint": ""}
 MSG = {
  "it": {
   "observe.summary": "OSSERVAZIONI {tool}: {new} nuove, {again} ricorrenti — `{cmd} list {tool}` (triage: `observe mark ID D|L|S|done`)",
@@ -77,12 +82,29 @@ MSG = {
   "observe.bad_severity": "{cmd}: severity «{severity}» sconosciuta (solo: high)",
   "observe.stop_line": "{n} osservazioni su {tool} pronte da inviare (anonimizzate, dopo il tuo sì): /{tool}:observe send",
   "observe.stop_line_security": "{n} osservazioni di SICUREZZA su {tool} da inviare in privato ai maintainer: /{tool}:observe send --security",
+  "observe.ask_head": "OPZIONI per AskUserQuestion (una riga JSON per opzione: label, description, command):",
+  "observe.ask_tail": "Le opzioni sono esattamente queste; niente altro nella domanda.",
+  "observe.opt_own": "Invia dal mio GitHub",
+  "observe.opt_own_desc": "Una issue a tuo nome su {repo}, con gh: puoi seguirla",
+  "observe.opt_own_desc_nogh": "Apre nel browser un link GitHub già compilato: la issue esce a tuo nome, puoi seguirla",
+  "observe.opt_anon": "Invia in forma anonima",
+  "observe.opt_anon_desc": "La issue la apre il nostro account di servizio, senza il tuo nome",
+  "observe.opt_private": "Invia in privato dal mio GitHub",
+  "observe.opt_private_desc": "Segnalazione privata di vulnerabilità su {repo}: la vedono solo i maintainer, mai una issue pubblica",
+  "observe.opt_private_desc_nogh": "Apre la pagina «Report a vulnerability» di {repo} nel browser, con il testo da incollare: la vedono solo i maintainer",
+  "observe.opt_contact": "Manda all'indirizzo dei maintainer",
+  "observe.opt_contact_desc": "Il testo va a {contact} (SECURITY.md), mai in una issue pubblica",
+  "observe.opt_later": "Non ora",
+  "observe.opt_later_desc": "La proposta torna fra {days} giorni",
+  "observe.later": "va bene: la proposta per {tool} torna fra {days} giorni",
+  "observe.no_endpoint": "observe.endpoint vuoto nella config: l'invio anonimo non è disponibile",
+  "observe.reported_anonymous": "inviato in forma anonima: {url}",
   "observe.summary_flags": "⚠ SICUREZZA {sec} · GRAVI {high} — ",
   "observe.propose_security": "OSSERVAZIONE DI SICUREZZA DA INVIARE {tool}: {n}, percorso PRIVATO (mai in una issue pubblica). Al primo momento naturale proponi all'utente di inviarla: `{cmd} report {tool} --security` prepara UNA segnalazione anonimizzata che vedono solo i maintainer; mostragliela com'è e chiedi un solo sì, poi lancia il comando con --send che stampa.",
   "observe.draft_head_security": "BOZZA PRIVATA per {repo}: {n} osservazioni di sicurezza (anonimizzate; niente è stato inviato). Destinazione: {channel}",
   "observe.channel_advisory": "segnalazione privata di vulnerabilità di GitHub su {repo} (la vedono solo i maintainer)",
   "observe.draft_nogh_security": "gh non c'è o non è autenticato: l'invio stamperà il testo e il link della pagina «Report a vulnerability» di {repo}, da aprire nel browser (già loggato) e compilare a mano.",
-  "observe.draft_tail_security": "Mostra questo testo all'utente e chiedi UN sì. Solo se approva QUESTO testo: {cmd} report {tool} --security --send {hash}",
+  "observe.draft_tail_security": "Mostra questo testo all'utente com'è. Poi chiedi con AskUserQuestion, con le opzioni qui sotto (tasti, non testo libero), ed esegui SOLO il comando dell'opzione scelta: MAI una issue pubblica. Hash della bozza: {hash}",
   "observe.reported_security": "segnalazione privata inviata: {url}",
   "observe.link_security": "apri questa pagina (GitHub, «Report a vulnerability») e incolla il testo qui sotto: {url}",
   "observe.security_contact": "manda il testo qui sotto a {contact} (indirizzo in SECURITY.md); il record è segnato come inviato",
@@ -91,7 +113,7 @@ MSG = {
   "observe.usage_report": "uso: {cmd} report STRUMENTO [--send HASH]",
   "observe.usage": "uso: {cmd} <add|list|show|mark|export|report> [...]",
   "observe.draft_head": "BOZZA per {repo}: {n} osservazioni in una issue (anonimizzata; niente è stato inviato)",
-  "observe.draft_tail": "Mostra questo testo all'utente e chiedi UN sì. Solo se approva QUESTO testo: {cmd} report {tool} --send {hash}",
+  "observe.draft_tail": "Mostra questo testo all'utente com'è. Poi chiedi con AskUserQuestion, con le opzioni qui sotto (tasti, non testo libero), ed esegui SOLO il comando dell'opzione scelta. Hash della bozza: {hash}",
   "observe.hash_mismatch": "{cmd}: la bozza è cambiata (hash attuale {hash}): rimostrala all'utente prima di inviare",
   "observe.reported": "issue aperta: {url}",
   "observe.known_workaround": "Errore noto di {tool} {version}. Aggiramento registrato: {workaround}",
@@ -114,12 +136,29 @@ MSG = {
   "observe.bad_severity": "{cmd}: unknown severity “{severity}” (only: high)",
   "observe.stop_line": "{n} observations on {tool} ready to send (anonymized, after your yes): /{tool}:observe send",
   "observe.stop_line_security": "{n} SECURITY observations on {tool} to send privately to the maintainers: /{tool}:observe send --security",
+  "observe.ask_head": "OPTIONS for AskUserQuestion (one JSON line per option: label, description, command):",
+  "observe.ask_tail": "The options are exactly these; nothing else in the question.",
+  "observe.opt_own": "Send from my GitHub",
+  "observe.opt_own_desc": "An issue in your name on {repo}, through gh: you can follow it",
+  "observe.opt_own_desc_nogh": "Opens a prefilled GitHub link in the browser: the issue goes out in your name, you can follow it",
+  "observe.opt_anon": "Send anonymously",
+  "observe.opt_anon_desc": "Our service account opens the issue, without your name",
+  "observe.opt_private": "Send privately from my GitHub",
+  "observe.opt_private_desc": "A private vulnerability report on {repo}: only the maintainers see it, never a public issue",
+  "observe.opt_private_desc_nogh": "Opens the “Report a vulnerability” page of {repo} in the browser, with the text to paste: only the maintainers see it",
+  "observe.opt_contact": "Send to the maintainers' address",
+  "observe.opt_contact_desc": "The text goes to {contact} (SECURITY.md), never a public issue",
+  "observe.opt_later": "Not now",
+  "observe.opt_later_desc": "The offer comes back in {days} days",
+  "observe.later": "fine: the offer for {tool} comes back in {days} days",
+  "observe.no_endpoint": "observe.endpoint is empty in the config: anonymous sending is not available",
+  "observe.reported_anonymous": "sent anonymously: {url}",
   "observe.summary_flags": "⚠ SECURITY {sec} · HIGH {high} — ",
   "observe.propose_security": "SECURITY OBSERVATION TO SEND {tool}: {n}, PRIVATE path (never a public issue). At the first natural moment offer the user to send it: `{cmd} report {tool} --security` prepares ONE anonymized report seen by the maintainers only; show it as it is and ask for a single yes, then run the --send command it prints.",
   "observe.draft_head_security": "PRIVATE DRAFT for {repo}: {n} security observations (anonymized; nothing has been sent). Destination: {channel}",
   "observe.channel_advisory": "GitHub private vulnerability report on {repo} (seen by the maintainers only)",
   "observe.draft_nogh_security": "gh is missing or not logged in: sending will print the text and the link of the “Report a vulnerability” page of {repo}, to open in the browser (already logged in) and fill by hand.",
-  "observe.draft_tail_security": "Show this text to the user and ask for ONE yes. Only if they approve THIS text: {cmd} report {tool} --security --send {hash}",
+  "observe.draft_tail_security": "Show this text to the user as it is. Then ask with AskUserQuestion, with the options below (buttons, not free text), and run ONLY the command of the chosen option: NEVER a public issue. Draft hash: {hash}",
   "observe.reported_security": "private report sent: {url}",
   "observe.link_security": "open this page (GitHub, “Report a vulnerability”) and paste the text below: {url}",
   "observe.security_contact": "send the text below to {contact} (the address in SECURITY.md); the record is marked as sent",
@@ -128,7 +167,7 @@ MSG = {
   "observe.usage_report": "usage: {cmd} report TOOL [--send HASH]",
   "observe.usage": "usage: {cmd} <add|list|show|mark|export|report> [...]",
   "observe.draft_head": "DRAFT for {repo}: {n} observations in one issue (anonymized; nothing has been sent)",
-  "observe.draft_tail": "Show this text to the user and ask for ONE yes. Only if they approve THIS text: {cmd} report {tool} --send {hash}",
+  "observe.draft_tail": "Show this text to the user as it is. Then ask with AskUserQuestion, with the options below (buttons, not free text), and run ONLY the command of the chosen option. Draft hash: {hash}",
   "observe.hash_mismatch": "{cmd}: the draft changed (current hash {hash}): show it to the user again before sending",
   "observe.reported": "issue opened: {url}",
   "observe.known_workaround": "Known {tool} {version} error. Recorded workaround: {workaround}",
@@ -896,6 +935,68 @@ def draft(tool, recs, target=None, security=False):
     return title, body, hashlib.sha256(f"{head}\n{text}".encode()).hexdigest()[:10]
 
 
+def options(tool, t, h, security, has_gh):
+    """Le scelte da porre all'utente con AskUserQuestion (tasti, mai testo libero), dopo la bozza: dal suo GitHub (mai per
+    una security: quella va solo in privato), in forma anonima dal nostro endpoint (solo se observe.endpoint e'
+    configurato), non ora (torna dopo propose_every_days). Ogni riga: etichetta, descrizione, comando da eseguire."""
+    repo = str(t.get("repo") or "")
+    days = int(float(O.get("propose_every_days") or 7))
+    base = f"{CMD} report {tool}" + (" --security" if security else "")
+    out = []
+    if not security:
+        out.append({"label": M("observe.opt_own"), "description": M("observe.opt_own_desc" if has_gh else "observe.opt_own_desc_nogh", repo=repo),
+                    "command": f"{base} --send {h}"})
+    if str(O.get("endpoint") or "").strip():
+        out.append({"label": M("observe.opt_anon"), "description": M("observe.opt_anon_desc"), "command": f"{base} --send {h} --anonymous"})
+    if security:
+        channel = str(t.get("security") or "").strip()
+        if channel == "advisory":
+            out.append({"label": M("observe.opt_private"), "description": M("observe.opt_private_desc" if has_gh else "observe.opt_private_desc_nogh", repo=repo),
+                        "command": f"{base} --send {h}"})
+        elif channel:
+            out.append({"label": M("observe.opt_contact"), "description": M("observe.opt_contact_desc", contact=channel), "command": f"{base} --send {h}"})
+    out.append({"label": M("observe.opt_later"), "description": M("observe.opt_later_desc", days=days), "command": f"{base} --later"})
+    return out
+
+
+def print_options(opts):
+    print("\n" + M("observe.ask_head"))
+    for o in opts:
+        print(json.dumps(o, ensure_ascii=False))
+    print(M("observe.ask_tail"))
+
+
+def later(tool):
+    """«Non ora»: la proposta (al modello e a schermo) tace per propose_every_days, poi torna."""
+    now = str(time.time())
+    for f in (".proposed-", ".proposed-sec-", ".shown-", ".shown-sec-"):
+        try:
+            box_dir().mkdir(parents=True, exist_ok=True)
+            (box_dir() / f"{f}{tool}").write_text(now)
+        except OSError:
+            pass
+    print(M("observe.later", tool=tool, days=int(float(O.get("propose_every_days") or 7))))
+    return 0
+
+
+def send_anonymous(tool, t, title, body, recs, security):
+    """L'invio anonimo: POST JSON a observe.endpoint con la bozza anonimizzata piu' plugin, versione e i flag — niente
+    altro. La issue la apre l'account di servizio del sito, senza il nome dell'utente. Torna l'URL (o l'endpoint)."""
+    url = str(O.get("endpoint") or "").strip()
+    if not url:
+        raise ValueError(M("observe.no_endpoint"))
+    payload = {"plugin": tool, "version": tool_version(tool, t) or None, "security": bool(security),
+               "severity": "high" if any(r.get("severity") == "high" for r in recs) else None, "title": title, "body": body}
+    req = urllib.request.Request(url, data=json.dumps(payload, ensure_ascii=False).encode(), method="POST",
+                                 headers={"Content-Type": "application/json", "User-Agent": "claude-observe"})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        raw = r.read().decode()
+    try:
+        return str(json.loads(raw).get("url") or url)
+    except (ValueError, AttributeError):
+        return url
+
+
 def issue_link(repo, title, body, limit=7500):
     """Il link GitHub precompilato per chi non ha gh: l'utente lo apre gia' loggato. Oltre il limite dell'URL il corpo si
     taglia per righe, con una nota."""
@@ -910,7 +1011,7 @@ def issue_link(repo, title, body, limit=7500):
         cut += 1
 
 
-def report_security(tool, t, repo, send):
+def report_security(tool, t, repo, send, anonymous=False):
     """Il percorso privato: tool.json → `security` dice dove vanno («advisory» = segnalazione privata di vulnerabilita' di
     GitHub sul repo, con gh; senza gh la pagina «Report a vulnerability» da aprire; oppure un mailto:/URL da SECURITY.md,
     stampato con il testo). Sempre anonimizzato, sempre dopo il si' dell'utente, mai in una issue."""
@@ -919,7 +1020,7 @@ def report_security(tool, t, repo, send):
     if not recs:
         print(M("observe.nothing_to_send", tool=tool))
         return 0
-    if not channel:
+    if not channel and not str(O.get("endpoint") or "").strip():
         print(M("observe.no_security_channel", tool=tool), file=sys.stderr)
         return 2
     title, body, h = draft(tool, recs, security=True)
@@ -930,11 +1031,19 @@ def report_security(tool, t, repo, send):
             print(M("observe.draft_nogh_security", repo=repo))
         print("\n" + title + "\n\n" + body)
         print("\n" + M("observe.draft_tail_security", tool=tool, hash=h))
+        print_options(options(tool, t, h, True, has_gh))
         return 0
     if send != h:
         print(M("observe.hash_mismatch", hash=h), file=sys.stderr)
         return 3
-    if has_gh:
+    if anonymous:
+        try:
+            where = send_anonymous(tool, t, title, body, recs, True)
+        except (ValueError, OSError, urllib.error.URLError) as e:
+            print(str(e), file=sys.stderr)
+            return 4
+        print(M("observe.reported_anonymous", url=where))
+    elif has_gh:
         payload = json.dumps({"summary": title[:1024], "description": body[:65000]})
         res = subprocess.run(["gh", "api", "-X", "POST", f"repos/{repo}/security-advisories/reports", "--input", "-"],
                              input=payload, capture_output=True, text=True, timeout=60)
@@ -963,7 +1072,7 @@ def report_security(tool, t, repo, send):
     return 0
 
 
-def report(tool, send=None, security=False):
+def report(tool, send=None, security=False, anonymous=False):
     t = tools().get(tool)
     if not t:
         print(M("observe.usage_report"), file=sys.stderr)
@@ -973,7 +1082,7 @@ def report(tool, send=None, security=False):
         print(M("observe.no_repo", tool=tool), file=sys.stderr)
         return 2
     if security:
-        return report_security(tool, t, repo, send)
+        return report_security(tool, t, repo, send, anonymous)
     recs = pending(tool)
     if not recs:
         print(M("observe.nothing_to_send", tool=tool))
@@ -989,11 +1098,19 @@ def report(tool, send=None, security=False):
             print(M("observe.draft_nogh"))
         print("\n" + title + "\n\n" + body)
         print("\n" + M("observe.draft_tail", tool=tool, hash=h))
+        print_options(options(tool, t, h, False, has_gh))
         return 0
     if send != h:
         print(M("observe.hash_mismatch", hash=h), file=sys.stderr)
         return 3
-    if has_gh:
+    if anonymous:
+        try:
+            where = send_anonymous(tool, t, title, body, recs, False)
+        except (ValueError, OSError, urllib.error.URLError) as e:
+            print(str(e), file=sys.stderr)
+            return 4
+        print(M("observe.reported_anonymous", url=where))
+    elif has_gh:
         args = (["gh", "issue", "comment", str(target["number"]), "-R", repo, "--body-file", "-"] if target else
                 ["gh", "issue", "create", "-R", repo, "--title", title, "--body-file", "-"])
         res = subprocess.run(args, input=(f"**{title}**\n\n{body}" if target else body), capture_output=True, text=True, timeout=60)
@@ -1156,12 +1273,14 @@ def main(argv):
         return 0
     if sub == "report":
         send = opt(rest, "--send")
-        security = "--security" in rest
-        rest = [x for x in rest if x != "--security"]
+        security, anonymous, is_later = "--security" in rest, "--anonymous" in rest, "--later" in rest
+        rest = [x for x in rest if x not in ("--security", "--anonymous", "--later")]
         if not rest:
             print(M("observe.usage_report"), file=sys.stderr)
             return 2
-        return report(rest[0], send, security=security)
+        if is_later:
+            return later(rest[0])
+        return report(rest[0], send, security=security, anonymous=anonymous)
     print(M("observe.usage"), file=sys.stderr)
     return 2
 

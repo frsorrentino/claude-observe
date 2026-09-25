@@ -18,7 +18,11 @@ repo), one copy per plugin, checked by hash at every release of that plugin.
   **one** GitHub issue per plugin (or a comment on an open issue about the same error), shows the anonymized text, and
   sends it only after your confirmation — with `gh`, or as a prefilled link you open yourself. What was sent is never
   offered again. You see the offer too: at the end of a turn, one line on screen such as «2 observations on
-  chrome-bridge ready to send: /chrome-bridge:observe send», once, then silence for seven days.
+  chrome-bridge ready to send: /chrome-bridge:observe send», once, then silence for seven days. The question comes as
+  buttons: «Send from my GitHub» (an issue in your name, you can follow it), «Send anonymously» and «Not now» (it
+  comes back in seven days). Anonymous reports are opened as issues by our service account, without your name — the
+  option appears once `observe.endpoint` in the config names that service (it is not live yet); security
+  observations go only through the private paths.
 - **Security observations take a private path.** Claude marks a note `--security` when it saw a read or write outside
   the perimeter, a secret exposed, code run that was not asked for, or data leaving the computer (it decides from what
   it saw; it never asks you to classify), and `--severity high` when a defect of the plugin blocked the work (data
