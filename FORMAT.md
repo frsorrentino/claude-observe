@@ -43,6 +43,8 @@ higher than its own does not rewrite the file.
 | `fixed_in` | string | version that fixed it: never offered as an issue again |
 | `reported` | string | issue URL, comment URL or prefilled link |
 | `attribution` | string | `uncertain` when the plugin's command was not the last one of the line |
+| `security` | bool | set by hand (`add --security`): a read or write outside the perimeter, a secret exposed, unwanted code execution, data leaving the computer — never part of a public issue, sent only through `report --security` |
+| `severity` | string | `high`, set by hand (`add --severity high`): a defect of the plugin that blocks the work |
 
 A component that writes without Python (for example an MCP server run without its plugin) follows the same rules:
 same file, same `id` computation, `source` of its own, and never parameter values.
@@ -52,5 +54,16 @@ same file, same `id` computation, `source` of its own, and never parameter value
 Any session, at start, for a plugin with a `repo` in `tool.json`, when its unsent records (status not `done` or
 `reported`, attribution not `uncertain`, no `fixed_in`) meet one of: count ≥ `propose_after` (3); oldest `first_seen`
 at least `propose_after_days` days ago (3; `0` = never by age); or a record with `class` `D` (a defect written by hand),
-at once. Then not again for `propose_every_days` days (7) for that plugin — `.proposed-<plugin>` in the state folder
-holds the time — and never in the maintainer's own session.
+at once; a record with `security` or `severity` `high` also at once. Then not again for `propose_every_days` days (7)
+for that plugin — `.proposed-<plugin>` (and `.proposed-sec-<plugin>` for the private path) in the state folder holds
+the time — and never in the maintainer's own session. The same rule shows the user one line on screen at the end of a
+turn (the Stop hook, `.shown-<plugin>` / `.shown-sec-<plugin>`), once per `propose_every_days`.
+
+## The private path
+
+Records with `security` never enter the public issue (`pending` excludes them). `report --security` (the command
+`/<plugin>:observe send --security`) drafts one anonymized report of them, shows it, and sends it only with the user's
+yes to the channel `tool.json` → `security` names: `advisory` = `POST /repos/<repo>/security-advisories/reports`
+through `gh` (the repository needs «Private vulnerability reporting» on), or without `gh` the page
+`https://github.com/<repo>/security/advisories/new` to paste the text into; a `mailto:` or URL = printed with the
+text. Sent records get `status` `reported` and `reported` = the advisory URL or the address. No channel: refused.

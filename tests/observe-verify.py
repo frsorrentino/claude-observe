@@ -72,7 +72,7 @@ TOOLS = tmp / "tools"
 TOOLS.mkdir()
 CB = TOOLS / "chrome-bridge.json"
 CM = TOOLS / "claude-master.json"
-CB.write_text(json.dumps({"name": "chrome-bridge", "repo": "frsorrentino/chrome-bridge", "match": {"mcp": ["mcp__chrome-bridge__"]}}))
+CB.write_text(json.dumps({"name": "chrome-bridge", "repo": "frsorrentino/chrome-bridge", "security": "advisory", "match": {"mcp": ["mcp__chrome-bridge__"]}}))
 CM.write_text(json.dumps({"name": "claude-master", "repo": "frsorrentino/claude-master", "command": "claude-master observe",
                           "match": {"bash": [r"(^|\s|/)claude-master(\s|$)", r"/scripts/cm-[\w-]+\.(sh|py)\b"]},
                           "benign_exits": {"restart arm": [4], "model": [2, 3], "close": [3, 4]}}))
@@ -196,7 +196,7 @@ exp = obs("export", "chrome-bridge").stdout
 check("OB9 add (manual record with class and workaround), --on enriches a hook record, mark done, export as a table",
       r.returncode == 0 and man.get("class") == "D" and pix.get("workaround") == "portare la finestra davanti" and pix.get("class") == "L"
       and next(x for x in recs("chrome-bridge") if x["id"] == man["id"])["status"] == "done"
-      and exp.startswith("| id |") and "execute_js sui li" in exp and "483581071" not in exp, exp[:700])
+      and exp.startswith("| flag | id |") and "execute_js sui li" in exp and "483581071" not in exp, exp[:700])
 check("OB9 list hides done records unless --all", man["id"] not in obs("list").stdout and man["id"] in obs("list", "--all").stdout, "")
 
 # OB10
@@ -245,6 +245,7 @@ case "$1 $2" in
   "issue list") echo '{json.dumps([existing] if existing else [])}' ;;
   "issue create") echo "CREATE $@" >> {gh_log}; cat >> {gh_log}; echo https://github.com/frsorrentino/chrome-bridge/issues/99 ;;
   "issue comment") echo "COMMENT $@" >> {gh_log}; cat >> {gh_log}; echo https://github.com/frsorrentino/chrome-bridge/issues/7#c1 ;;
+  "api -X") echo "API $@" >> {gh_log}; cat >> {gh_log}; echo '{{"html_url": "https://github.com/frsorrentino/chrome-bridge/security/advisories/GHSA-test"}}' ;;
 esac
 """)
     GH.chmod(0o755)
@@ -468,7 +469,7 @@ hk2 = json.loads((plug2 / "hooks" / "hooks.json").read_text())["hooks"]
 check("OB21 skills-only plugin: the draft counts note(s), no error(s), no claude-master wording; the offer does not say «hook»",
       "3 note(s)" in d21 and "error(s)" not in d21 and "claude-master" not in d21 and "claude-observe" in d21
       and "DA INVIARE skills-only" in p21 and "registrati da un hook su" not in p21, d21[:500] + p21)
-check("OB21 sync.py on a plugin without match: SessionStart only, no empty PostToolUseFailure", list(hk2) == ["SessionStart"], json.dumps(hk2))
+check("OB21 sync.py on a plugin without match: SessionStart and Stop only, no empty PostToolUseFailure", sorted(hk2) == ["SessionStart", "Stop"], json.dumps(hk2))
 
 # OB22 (via il record di formato futuro di OB20, che blocca la riscrittura del file)
 (box / "mytool.jsonl").write_text("".join(json.dumps(x) + "\n" for x in recs("mytool") if x.get("v") == 1))
@@ -537,6 +538,91 @@ chk25 = subprocess.run(["bash", str(src2 / "check.sh"), str(plug3)], capture_out
 check("OB25 sync.py refuses a source with uncommitted observe.py; check.sh compares with the committed source, not the working tree",
       ok25.returncode == 0 and dirty25.returncode == 1 and "non committate" in dirty25.stderr and chk25.returncode == 0,
       ok25.stderr + dirty25.stderr + chk25.stdout + chk25.stderr)
+
+# OB26 (25/09): --security e --severity high — percorso privato, mai nella issue pubblica, proposta subito, in cima
+cfg.write_text(json.dumps(BASE))
+for f in list(box.glob(".proposed-*")) + list(box.glob(".shown-*")):
+    f.unlink()
+fake_gh()
+a26 = obs("add", "chrome-bridge", "upload_file legge ~/.ssh fuori dal perimetro", "--security", "--class", "D")
+sec_id = a26.stdout.split()[1] if a26.returncode == 0 else ""
+d_pub = obs("report", "chrome-bridge").stdout
+d_sec = obs("report", "chrome-bridge", "--security").stdout
+check("OB26 a --security note never enters the public draft; report --security prepares a PRIVATE draft with it, the destination named, --security --send in the tail",
+      a26.returncode == 0 and sec_id and "fuori dal perimetro" not in d_pub and "BOZZA PRIVATA" in d_sec and "fuori dal perimetro" in d_sec
+      and "segnalazione privata di vulnerabilità di GitHub su frsorrentino/chrome-bridge" in d_sec and "--security --send" in d_sec, d_pub[:300] + "\n---\n" + d_sec[:600])
+h26 = sent_hash(d_sec)
+check("OB26 a wrong hash is refused (3), nothing sent", obs("send", "chrome-bridge", "--security", "--send", "deadbeef00").returncode == 3, "")
+before26 = gh_log.read_text() if gh_log.exists() else ""
+s26 = obs("send", "chrome-bridge", "--security", "--send", h26)
+after26 = gh_log.read_text()[len(before26):]
+check("OB26 send --security --send HASH → gh api POST repos/<repo>/security-advisories/reports with summary and description, no issue; «segnalazione privata inviata» with the advisory URL; the record reported",
+      s26.returncode == 0 and "api -X POST repos/frsorrentino/chrome-bridge/security-advisories/reports --input -" in after26 and '"summary"' in after26 and "CREATE" not in after26
+      and "GHSA-test" in s26.stdout and any(x["id"] == sec_id and x["status"] == "reported" and "GHSA-test" in x["reported"] for x in recs("chrome-bridge")), s26.stdout + s26.stderr + after26[:300])
+fake_gh(auth=False)
+obs("add", "chrome-bridge", "javascript_tool esegue codice non richiesto", "--security")
+d26b = obs("report", "chrome-bridge", "--security").stdout
+s26b = obs("send", "chrome-bridge", "--security", "--send", sent_hash(d26b))
+check("OB26 without gh: the private draft says so, and --send prints the «Report a vulnerability» page of the repo plus the text to paste, never an issues/new link",
+      "Report a vulnerability" in d26b and "https://github.com/frsorrentino/chrome-bridge/security/advisories/new" in s26b.stdout and "esegue codice" in s26b.stdout and "issues/new" not in s26b.stdout, d26b[:300] + s26b.stdout[:400])
+fake_gh()
+obs("add", "skills-only", "la skill scrive fuori dalla cartella", "--security", tool=SK)
+r26c = obs("report", "skills-only", "--security", tool=SK)
+check("OB26 a plugin whose tool.json has no `security` channel → report --security refuses (2) and says to ask the maintainer, never a public issue",
+      r26c.returncode == 2 and "non dice dove vanno" in r26c.stderr and "fuori dalla cartella" not in obs("report", "skills-only", tool=SK).stdout, r26c.stdout + r26c.stderr)
+obs("add", "chrome-bridge", "read_page manda il DOM a un servizio esterno", "--security")   # non inviata: resta in attesa
+a26d = obs("add", "chrome-bridge", "comando sbagliato eseguito, sessione persa", "--severity", "high")
+bad26 = obs("add", "chrome-bridge", "x", "--severity", "medium")
+obs("add", "chrome-bridge", "una nota normale di oggi")
+l26 = obs("list", "chrome-bridge").stdout.splitlines()
+e26 = obs("export", "chrome-bridge").stdout.splitlines()
+check("OB26 --severity high accepted, «medium» refused (2); list and export put SEC first, then HIGH, with the prefix", a26d.returncode == 0 and bad26.returncode == 2
+      and l26 and l26[0].startswith("SEC  ") and any(x.startswith("HIGH ") for x in l26) and [x[:4].strip() for x in l26 if x[:4].strip()] == sorted([x[:4].strip() for x in l26 if x[:4].strip()], key=lambda k: k != "SEC")
+      and e26[2].startswith("| SEC |") and any(x.startswith("| HIGH |") for x in e26), "\n".join(l26[:4]) + "\n" + "\n".join(e26[:4]))
+for f in list(box.glob(".proposed-*")):
+    f.unlink()
+p26 = start(home / "ws" / "clienti" / "acme-shop", tool=CB)
+m26 = start(home / "ws" / "chrome-bridge", tool=CB)
+check("OB26 any session: the unsent security note → the PRIVATE offer at once, and the severity-high one → the normal offer at once (one of each, though below propose_after)",
+      "OSSERVAZIONE DI SICUREZZA DA INVIARE chrome-bridge: 1" in p26 and "report chrome-bridge --security" in p26 and "OSSERVAZIONI DA INVIARE chrome-bridge:" in p26, p26)
+check("OB26 the maintainer's SessionStart line carries the prefix with the counts of security and high observations", "⚠ SICUREZZA 1 · GRAVI 1 — OSSERVAZIONI chrome-bridge:" in m26, m26)
+
+# OB27 (25/09): l'hook Stop — la riga a schermo per l'utente (systemMessage) quando la regola scatta, una volta per 7 giorni
+def stop_line(cwd, tool=CB):
+    r = obs("stop", stdin=json.dumps({"cwd": str(cwd), "hook_event_name": "Stop", "session_id": "s1"}), tool=tool)
+    return (json.loads(r.stdout).get("systemMessage", "") if r.stdout.strip() else ""), r.returncode
+for f in list(box.glob(".shown-*")):
+    f.unlink()
+l1, rc1 = stop_line(home / "ws" / "clienti" / "acme-shop")
+l2, rc2 = stop_line(home / "ws" / "clienti" / "acme-shop")
+lm, _ = stop_line(home / "ws" / "chrome-bridge")
+check("OB27 Stop in any session when the rule fires → ONE systemMessage line naming /chrome-bridge:observe send (and send --security for the security ones); exit 0",
+      rc1 == 0 and "/chrome-bridge:observe send --security" in l1 and "pronte da inviare" in l1 and "/chrome-bridge:observe send" in l1, l1)
+check("OB27 not twice within propose_every_days; never in the maintainer's session", rc2 == 0 and l2 == "" and lm == "", f"{l2!r} {lm!r}")
+seed((0, None))
+for f in list(box.glob(".shown-*")):
+    f.unlink()
+lb, _ = stop_line(home / "ws" / "clienti" / "acme-shop", tool=CM)
+check("OB27 below the rule (one fresh observation, no flag) → no line", lb == "", lb)
+seed((0, None), (0, None), (0, None))
+lc, _ = stop_line(home / "ws" / "clienti" / "acme-shop", tool=CM)
+check("OB27 at propose_after → the line, with the count", "3 osservazioni su claude-master" in lc and "/claude-master:observe send" in lc, lc)
+CMJ.unlink()
+
+# OB28 (25/09): sync.py genera commands/observe.md (uniforme) e la voce Stop; un comando scritto a mano resta
+sync28 = subprocess.run([sys.executable, str(SRC1 / "sync.py"), str(plug2)], capture_output=True, text=True)
+cmd28 = plug2 / "commands" / "observe.md"
+plug3 = tmp / "plugin-hand"
+(plug3 / "observe").mkdir(parents=True); (plug3 / "commands").mkdir()
+(plug3 / "observe" / "tool.json").write_text(SK.read_text())
+(plug3 / "commands" / "observe.md").write_text("# mio\n")
+sync28b = subprocess.run([sys.executable, str(SRC1 / "sync.py"), str(plug3)], capture_output=True, text=True)
+chk28 = subprocess.run(["bash", str(SRC1 / "check.sh"), str(plug2)], capture_output=True, text=True)
+check("OB28 sync.py writes commands/observe.md from the source template (send, send --security, list, mark, add; the plugin's name; the generated marker), Stop hook with the stop command and a 5 s timeout; check.sh passes",
+      sync28.returncode == 0 and cmd28.is_file() and "generated by claude-observe sync.py" in cmd28.read_text() and "send --security" in cmd28.read_text() and "skills-only" in cmd28.read_text()
+      and json.loads((plug2 / "hooks" / "hooks.json").read_text())["hooks"]["Stop"][0]["hooks"][0]["command"].endswith('observe.py" stop') and json.loads((plug2 / "hooks" / "hooks.json").read_text())["hooks"]["Stop"][0]["hooks"][0]["timeout"] == 5
+      and chk28.returncode == 0, sync28.stdout + sync28.stderr + chk28.stderr)
+check("OB28 a hand-written commands/observe.md is left as it is, with a note", (plug3 / "commands" / "observe.md").read_text() == "# mio\n" and "scritto a mano" in sync28b.stdout, sync28b.stdout)
 
 shutil.rmtree(tmp, ignore_errors=True)
 print(f"\n{OKS}/{OKS + len(FAILS)} OK" + (", FAIL: " + ", ".join(FAILS) if FAILS else ""))

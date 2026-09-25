@@ -17,5 +17,6 @@ fi
 have=$(sha256sum "$ROOT/observe/observe.py" | cut -d' ' -f1)
 [ "$want" = "$have" ] || fail "observe.py diverso dalla fonte (copia ${have:0:12}, fonte ${want:0:12})"
 grep -q '/observe/observe.py\\" session-start' "$ROOT/hooks/hooks.json" 2>/dev/null || fail "hooks.json non chiama observe.py session-start"
+grep -q '/observe/observe.py\\" stop' "$ROOT/hooks/hooks.json" 2>/dev/null || fail "hooks.json non chiama observe.py stop (la riga a schermo)"
 python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$ROOT/observe/tool.json" || fail "tool.json non valido"
 echo "claude-observe ok: $(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["name"])' "$ROOT/observe/tool.json") = fonte ${want:0:12}"

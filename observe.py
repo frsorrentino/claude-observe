@@ -73,7 +73,20 @@ MSG = {
   "observe.unknown_id": "{cmd}: nessuna osservazione con id «{id}»",
   "observe.no_repo": "{cmd}: lo strumento «{tool}» non ha un repo nel registro (observe.tools): nessuna issue",
   "observe.bad_class": "{cmd}: classe «{cls}» sconosciuta (D difetto nostro, L limite di altri, S comportamento del sito)",
-  "observe.usage_add": "uso: {cmd} add STRUMENTO \"cosa\" [--error E] [--workaround W] [--class D|L|S]  |  add --on ID [--workaround W] [--class C]  (strumenti: {tools})",
+  "observe.usage_add": "uso: {cmd} add STRUMENTO \"cosa\" [--error E] [--workaround W] [--class D|L|S] [--security] [--severity high]  |  add --on ID [--workaround W] [--class C] [--security] [--severity high]  (strumenti: {tools}). --security: lettura/scrittura fuori perimetro, segreti esposti, codice eseguito non voluto, dati che escono dal computer; --severity high: difetto nostro che blocca il lavoro. Li mette Claude, mai chiesti all'utente.",
+  "observe.bad_severity": "{cmd}: severity «{severity}» sconosciuta (solo: high)",
+  "observe.stop_line": "{n} osservazioni su {tool} pronte da inviare (anonimizzate, dopo il tuo sì): /{tool}:observe send",
+  "observe.stop_line_security": "{n} osservazioni di SICUREZZA su {tool} da inviare in privato ai maintainer: /{tool}:observe send --security",
+  "observe.summary_flags": "⚠ SICUREZZA {sec} · GRAVI {high} — ",
+  "observe.propose_security": "OSSERVAZIONE DI SICUREZZA DA INVIARE {tool}: {n}, percorso PRIVATO (mai in una issue pubblica). Al primo momento naturale proponi all'utente di inviarla: `{cmd} report {tool} --security` prepara UNA segnalazione anonimizzata che vedono solo i maintainer; mostragliela com'è e chiedi un solo sì, poi lancia il comando con --send che stampa.",
+  "observe.draft_head_security": "BOZZA PRIVATA per {repo}: {n} osservazioni di sicurezza (anonimizzate; niente è stato inviato). Destinazione: {channel}",
+  "observe.channel_advisory": "segnalazione privata di vulnerabilità di GitHub su {repo} (la vedono solo i maintainer)",
+  "observe.draft_nogh_security": "gh non c'è o non è autenticato: l'invio stamperà il testo e il link della pagina «Report a vulnerability» di {repo}, da aprire nel browser (già loggato) e compilare a mano.",
+  "observe.draft_tail_security": "Mostra questo testo all'utente e chiedi UN sì. Solo se approva QUESTO testo: {cmd} report {tool} --security --send {hash}",
+  "observe.reported_security": "segnalazione privata inviata: {url}",
+  "observe.link_security": "apri questa pagina (GitHub, «Report a vulnerability») e incolla il testo qui sotto: {url}",
+  "observe.security_contact": "manda il testo qui sotto a {contact} (indirizzo in SECURITY.md); il record è segnato come inviato",
+  "observe.no_security_channel": "{cmd}: tool.json di «{tool}» non dice dove vanno le segnalazioni di sicurezza (chiave security: «advisory», un mailto: o un URL): non invio; chiedi al maintainer, mai in una issue pubblica",
   "observe.usage_mark": "uso: {cmd} mark ID [D|L|S|done|new] [--fixed-in VERSIONE]",
   "observe.usage_report": "uso: {cmd} report STRUMENTO [--send HASH]",
   "observe.usage": "uso: {cmd} <add|list|show|mark|export|report> [...]",
@@ -97,7 +110,20 @@ MSG = {
   "observe.unknown_id": "{cmd}: no observation with id “{id}”",
   "observe.no_repo": "{cmd}: tool “{tool}” has no repo in the registry (observe.tools): no issue",
   "observe.bad_class": "{cmd}: unknown class “{cls}” (D our defect, L someone else's limit, S the site's behaviour)",
-  "observe.usage_add": "usage: {cmd} add TOOL \"what\" [--error E] [--workaround W] [--class D|L|S]  |  add --on ID [--workaround W] [--class C]  (tools: {tools})",
+  "observe.usage_add": "usage: {cmd} add TOOL \"what\" [--error E] [--workaround W] [--class D|L|S] [--security] [--severity high]  |  add --on ID [--workaround W] [--class C] [--security] [--severity high]  (tools: {tools}). --security: read/write outside the perimeter, secrets exposed, unwanted code execution, data leaving the computer; --severity high: a defect of ours that blocks the work. Claude sets them, never asked to the user.",
+  "observe.bad_severity": "{cmd}: unknown severity “{severity}” (only: high)",
+  "observe.stop_line": "{n} observations on {tool} ready to send (anonymized, after your yes): /{tool}:observe send",
+  "observe.stop_line_security": "{n} SECURITY observations on {tool} to send privately to the maintainers: /{tool}:observe send --security",
+  "observe.summary_flags": "⚠ SECURITY {sec} · HIGH {high} — ",
+  "observe.propose_security": "SECURITY OBSERVATION TO SEND {tool}: {n}, PRIVATE path (never a public issue). At the first natural moment offer the user to send it: `{cmd} report {tool} --security` prepares ONE anonymized report seen by the maintainers only; show it as it is and ask for a single yes, then run the --send command it prints.",
+  "observe.draft_head_security": "PRIVATE DRAFT for {repo}: {n} security observations (anonymized; nothing has been sent). Destination: {channel}",
+  "observe.channel_advisory": "GitHub private vulnerability report on {repo} (seen by the maintainers only)",
+  "observe.draft_nogh_security": "gh is missing or not logged in: sending will print the text and the link of the “Report a vulnerability” page of {repo}, to open in the browser (already logged in) and fill by hand.",
+  "observe.draft_tail_security": "Show this text to the user and ask for ONE yes. Only if they approve THIS text: {cmd} report {tool} --security --send {hash}",
+  "observe.reported_security": "private report sent: {url}",
+  "observe.link_security": "open this page (GitHub, “Report a vulnerability”) and paste the text below: {url}",
+  "observe.security_contact": "send the text below to {contact} (the address in SECURITY.md); the record is marked as sent",
+  "observe.no_security_channel": "{cmd}: tool.json of “{tool}” does not say where security reports go (key security: “advisory”, a mailto: or a URL): not sending; ask the maintainer, never a public issue",
   "observe.usage_mark": "usage: {cmd} mark ID [D|L|S|done|new] [--fixed-in VERSION]",
   "observe.usage_report": "usage: {cmd} report TOOL [--send HASH]",
   "observe.usage": "usage: {cmd} <add|list|show|mark|export|report> [...]",
@@ -526,7 +552,7 @@ def apply(recs, tool, rec_id, fields, example, now):
              "class": None, "status": "new", **fields}
         recs.append(r)
     else:
-        for k in ("workaround", "class", "note", "context"):
+        for k in ("workaround", "class", "note", "context", "security", "severity"):
             if fields.get(k):
                 r[k] = fields[k]
         if r.get("status") == "done" and fields.get("source", "").startswith("hook"):
@@ -623,7 +649,7 @@ def view(r, raw=False):
     if raw or r.get("account") == account_name():
         return dict(r)
     v = {k: r.get(k) for k in ("id", "tool", "source", "kind", "call", "count", "first_seen", "last_seen", "class", "status",
-                               "attribution") if k in r}
+                               "attribution", "security", "severity") if k in r}
     v["account"] = r.get("account")
     v["project"] = "[PROGETTO_" + hashlib.sha256(str(r.get("project")).encode()).hexdigest()[:4] + "]"
     v["error"] = r.get("key") or ""
@@ -635,8 +661,62 @@ def when(ts):
     return time.strftime("%d/%m %H:%M", time.localtime(float(ts or 0)))
 
 
+def flag_of(r):
+    """Il prefisso di list/export: SEC (sicurezza), HIGH (grave), altrimenti vuoto."""
+    return "SEC  " if r.get("security") else ("HIGH " if r.get("severity") == "high" else "     ")
+
+
 def find(rec_id):
     return next((r for r in all_records() if r.get("id") == rec_id), None)
+
+
+def mine_tools(real):
+    """Gli strumenti di cui la cartella `real` e' la sessione che li mantiene (maintainer_dir, o il remote origin = repo)."""
+    try:
+        origin = subprocess.run(["git", "-C", real, "remote", "get-url", "origin"], capture_output=True, text=True,
+                                timeout=3).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        origin = ""
+    slug = re.sub(r"(\.git)?/?$", "", re.sub(r"^.*github\.com[:/]", "", origin)).lower()
+    out = []
+    for name, t in tools().items():
+        md = expand(t.get("maintainer_dir") or "")
+        if (md and (real == os.path.realpath(md) or real.startswith(os.path.realpath(md) + os.sep))) or \
+           (slug and slug == str(t.get("repo") or "").lower()):
+            out.append(name)
+    return out
+
+
+def stop(cwd):
+    """Per l'hook Stop (25/09/2026): quando la regola di proposta scatta (soglia, eta', classe D, security, severity) UNA
+    riga a schermo per l'utente — systemMessage, non additionalContext — una volta sola per proposta, poi silenzio per
+    observe.propose_every_days; mai nella sessione che mantiene il plugin. Torna la riga o ''."""
+    if not O.get("enabled", True) or not O.get("propose", True):
+        return ""
+    real = os.path.realpath(cwd or os.getcwd())
+    mine = mine_tools(real)
+    now, lines = time.time(), []
+    for name, t in tools().items():
+        if name in mine or not t.get("repo"):
+            continue
+        for security, suffix in ((True, "sec-"), (False, "")):
+            pend = pending(name, security=security)
+            if not (pend if security else (pend and due(pend, now))):
+                continue
+            f = box_dir() / f".shown-{suffix}{name}"
+            try:
+                last = float(f.read_text().strip() or 0)
+            except (OSError, ValueError):
+                last = 0.0
+            if now - last < float(O.get("propose_every_days") or 7) * 86400:
+                continue
+            lines.append(M("observe.stop_line_security" if security else "observe.stop_line", tool=name, n=len(pend)))
+            try:
+                box_dir().mkdir(parents=True, exist_ok=True)
+                f.write_text(str(now))
+            except OSError:
+                pass
+    return " ".join(lines)
 
 
 def summary(cwd):
@@ -644,20 +724,10 @@ def summary(cwd):
     if not O.get("enabled", True):
         return ""
     real = os.path.realpath(cwd or os.getcwd())
-    try:
-        origin = subprocess.run(["git", "-C", real, "remote", "get-url", "origin"], capture_output=True, text=True,
-                                timeout=3).stdout.strip()
-    except (OSError, subprocess.SubprocessError):
-        origin = ""
-    slug = re.sub(r"(\.git)?/?$", "", re.sub(r"^.*github\.com[:/]", "", origin)).lower()
-    lines, mine_names = [], []
+    lines, mine_names = [], mine_tools(real)
     for name, t in tools().items():
-        md = expand(t.get("maintainer_dir") or "")
-        mine = (md and (real == os.path.realpath(md) or real.startswith(os.path.realpath(md) + os.sep))) or \
-               (slug and slug == str(t.get("repo") or "").lower())
-        if not mine:
+        if name not in mine_names:
             continue
-        mine_names.append(name)
         seen_f = box_dir() / f".seen-{name}"
         try:
             seen = float(seen_f.read_text().strip() or 0)
@@ -667,7 +737,10 @@ def summary(cwd):
         new = sum(1 for r in recs if float(r.get("first_seen") or 0) > seen)
         again = sum(1 for r in recs if float(r.get("first_seen") or 0) <= seen < float(r.get("last_seen") or 0))
         if new or again:
-            lines.append(M("observe.summary", tool=name, new=new, again=again))
+            sec = sum(1 for r in recs if r.get("security") and r.get("status") != "reported")
+            high = sum(1 for r in recs if r.get("severity") == "high" and not r.get("security") and r.get("status") != "reported")
+            prefix = M("observe.summary_flags", sec=sec, high=high) if sec or high else ""
+            lines.append(prefix + M("observe.summary", tool=name, new=new, again=again))
             try:
                 box_dir().mkdir(parents=True, exist_ok=True)
                 seen_f.write_text(str(time.time()))
@@ -676,10 +749,18 @@ def summary(cwd):
     return "\n".join(lines + proposals(real, mine_tools=mine_names))
 
 
-def pending(tool):
-    """Le osservazioni da inviare: non inviate, non chiuse, attribuite con certezza, non solo note a mano senza errore."""
+def pending(tool, security=False):
+    """Le osservazioni da inviare: non inviate, non chiuse, attribuite con certezza, non solo note a mano senza errore.
+    Con security=True quelle di sicurezza, che non entrano MAI nella issue pubblica: hanno un percorso privato (report
+    --security); senza, tutte le altre."""
     return [r for r in read(box_dir() / f"{tool}.jsonl")
-            if r.get("status") not in ("done", "reported") and r.get("attribution") != "uncertain" and not r.get("fixed_in")]
+            if r.get("status") not in ("done", "reported") and r.get("attribution") != "uncertain" and not r.get("fixed_in")
+            and bool(r.get("security")) == security]
+
+
+def urgent(r):
+    """Una classe D (difetto nostro segnato a mano), una security o una severity high: la proposta scatta subito."""
+    return r.get("class") == "D" or bool(r.get("security")) or r.get("severity") == "high"
 
 
 def due(pend, now=None):
@@ -691,7 +772,7 @@ def due(pend, now=None):
     now = now or time.time()
     if len(pend) >= int(O.get("propose_after") or 3):
         return True
-    if any(r.get("class") == "D" for r in pend):
+    if any(urgent(r) for r in pend):
         return True
     days = O.get("propose_after_days")
     days = 3.0 if days is None else float(days or 0)
@@ -706,25 +787,29 @@ def proposals(real, mine_tools=()):
     if not O.get("propose", True):
         return []
     out, now = [], time.time()
-    for name, t in tools().items():
-        if name in mine_tools or not t.get("repo"):
-            continue
-        pend = pending(name)
-        n = len(pend)
-        if not due(pend, now):
-            continue
-        f = box_dir() / f".proposed-{name}"
+
+    def gate(f):
         try:
             last = float(f.read_text().strip() or 0)
         except (OSError, ValueError):
             last = 0.0
         if now - last < float(O.get("propose_every_days") or 7) * 86400:
-            continue
-        out.append(M("observe.propose", tool=name, n=n))
+            return False
         try:
             f.write_text(str(now))
         except OSError:
             pass
+        return True
+
+    for name, t in tools().items():
+        if name in mine_tools or not t.get("repo"):
+            continue
+        sec = pending(name, security=True)   # binario privato, subito, con il suo intervallo
+        if sec and gate(box_dir() / f".proposed-sec-{name}"):
+            out.append(M("observe.propose_security", tool=name, n=len(sec)))
+        pend = pending(name)
+        if due(pend, now) and gate(box_dir() / f".proposed-{name}"):
+            out.append(M("observe.propose", tool=name, n=len(pend)))
     return out
 
 
@@ -776,8 +861,9 @@ def existing_issue(repo, recs):
     return found[0] if found else None
 
 
-def draft(tool, recs, target=None):
-    """Titolo e corpo di UNA issue (o di un commento) con le osservazioni dello strumento, gia' anonimizzati."""
+def draft(tool, recs, target=None, security=False):
+    """Titolo e corpo di UNA issue (o di un commento) con le osservazioni dello strumento, gia' anonimizzati. Con
+    security=True il testo della segnalazione privata (advisory GitHub o indirizzo di SECURITY.md), mai di una issue."""
     vs = [view(r) for r in sorted(recs, key=lambda r: -int(r.get("count") or 0))]
     recs_by_id = {r.get("id"): r for r in recs}
     rows = []
@@ -795,12 +881,18 @@ def draft(tool, recs, target=None):
         rows.append(f"- … and {len(vs) - 20} more")
     errors = sum(1 for v in vs if v.get("kind") != "note")
     kinds = ", ".join(x for x in (f"{errors} error(s)" if errors else "", f"{len(vs) - errors} note(s)" if len(vs) > errors else "") if x)
-    title = f"[{tool}] field observations: {kinds}, most frequent `{vs[0].get('call')}`"
-    body = "\n".join([f"Collected on {time.strftime('%Y-%m-%d')} by claude-observe (https://github.com/frsorrentino/claude-observe): "
-                      "errors recorded by a hook and notes added by hand; parameter values are never stored.", "", *rows])
+    if security:
+        title = f"[{tool}] security observation(s): {len(vs)}"
+        body = "\n".join([f"Private security report prepared on {time.strftime('%Y-%m-%d')} by claude-observe "
+                          "(https://github.com/frsorrentino/claude-observe), for the maintainers only — never a public issue. "
+                          "Parameter values are never stored.", "", *rows])
+    else:
+        title = f"[{tool}] field observations: {kinds}, most frequent `{vs[0].get('call')}`"
+        body = "\n".join([f"Collected on {time.strftime('%Y-%m-%d')} by claude-observe (https://github.com/frsorrentino/claude-observe): "
+                          "errors recorded by a hook and notes added by hand; parameter values are never stored.", "", *rows])
     text = redact_out(f"{title}\n\n{body}", tool)
     title, _, body = text.partition("\n\n")
-    head = f"comment #{target['number']}" if target else "new"
+    head = "security" if security else (f"comment #{target['number']}" if target else "new")
     return title, body, hashlib.sha256(f"{head}\n{text}".encode()).hexdigest()[:10]
 
 
@@ -818,7 +910,60 @@ def issue_link(repo, title, body, limit=7500):
         cut += 1
 
 
-def report(tool, send=None):
+def report_security(tool, t, repo, send):
+    """Il percorso privato: tool.json → `security` dice dove vanno («advisory» = segnalazione privata di vulnerabilita' di
+    GitHub sul repo, con gh; senza gh la pagina «Report a vulnerability» da aprire; oppure un mailto:/URL da SECURITY.md,
+    stampato con il testo). Sempre anonimizzato, sempre dopo il si' dell'utente, mai in una issue."""
+    channel = str(t.get("security") or "").strip()
+    recs = pending(tool, security=True)
+    if not recs:
+        print(M("observe.nothing_to_send", tool=tool))
+        return 0
+    if not channel:
+        print(M("observe.no_security_channel", tool=tool), file=sys.stderr)
+        return 2
+    title, body, h = draft(tool, recs, security=True)
+    has_gh = channel == "advisory" and gh_ok()
+    if send is None:
+        print(M("observe.draft_head_security", repo=repo, n=len(recs), channel=(M("observe.channel_advisory", repo=repo) if channel == "advisory" else channel)))
+        if channel == "advisory" and not has_gh:
+            print(M("observe.draft_nogh_security", repo=repo))
+        print("\n" + title + "\n\n" + body)
+        print("\n" + M("observe.draft_tail_security", tool=tool, hash=h))
+        return 0
+    if send != h:
+        print(M("observe.hash_mismatch", hash=h), file=sys.stderr)
+        return 3
+    if has_gh:
+        payload = json.dumps({"summary": title[:1024], "description": body[:65000]})
+        res = subprocess.run(["gh", "api", "-X", "POST", f"repos/{repo}/security-advisories/reports", "--input", "-"],
+                             input=payload, capture_output=True, text=True, timeout=60)
+        if res.returncode != 0:
+            print(res.stderr.strip() or res.stdout.strip(), file=sys.stderr)
+            return 4
+        try:
+            where = str(json.loads(res.stdout).get("html_url") or "")
+        except ValueError:
+            where = ""
+        where = where or f"https://github.com/{repo}/security/advisories"
+        print(M("observe.reported_security", url=where))
+    elif channel == "advisory":
+        where = f"https://github.com/{repo}/security/advisories/new"
+        print(M("observe.link_security", url=where))
+        print("\n" + title + "\n\n" + body)
+    else:
+        where = channel
+        print(M("observe.security_contact", contact=channel))
+        print("\n" + title + "\n\n" + body)
+    ids = {r["id"] for r in recs}
+    with Box(tool) as box:
+        for x in box.recs:
+            if x.get("id") in ids:
+                x["status"], x["reported"] = "reported", where[:200]
+    return 0
+
+
+def report(tool, send=None, security=False):
     t = tools().get(tool)
     if not t:
         print(M("observe.usage_report"), file=sys.stderr)
@@ -827,6 +972,8 @@ def report(tool, send=None):
     if not repo:
         print(M("observe.no_repo", tool=tool), file=sys.stderr)
         return 2
+    if security:
+        return report_security(tool, t, repo, send)
     recs = pending(tool)
     if not recs:
         print(M("observe.nothing_to_send", tool=tool))
@@ -889,6 +1036,20 @@ def main(argv):
             return hook(p)
         except Exception:   # noqa: BLE001 — un hook non deve mai disturbare la sessione
             return 0
+    if sub == "stop":
+        try:
+            p = json.load(sys.stdin)
+        except (ValueError, OSError):
+            p = {}
+        try:
+            line = stop(p.get("cwd") or os.getcwd())
+            if line:
+                print(json.dumps({"systemMessage": line}, ensure_ascii=False))
+        except Exception:   # noqa: BLE001 — un hook Stop non deve mai fermare nulla
+            pass
+        return 0
+    if sub == "send":   # il comando /<plugin>:observe send: la bozza e il solo si', come report
+        sub = "report"
     if sub == "session-start":
         try:
             p = json.load(sys.stdin)
@@ -903,13 +1064,23 @@ def main(argv):
         return 0
     if sub == "add":
         error, work, cls, on = opt(rest, "--error"), opt(rest, "--workaround"), opt(rest, "--class"), opt(rest, "--on")
+        # --security: lettura o scrittura fuori perimetro, segreti esposti, codice eseguito non voluto, dati che escono
+        # dal computer; --severity high: difetto nostro che blocca il lavoro. Li mette Claude nella sessione, mai chiesti
+        # all'utente. Percorso privato per le security (report --security), proposta subito per tutte e due.
+        security = "--security" in rest
+        rest = [x for x in rest if x != "--security"]
+        severity = opt(rest, "--severity")
+        if severity is not None and severity != "high":
+            print(M("observe.bad_severity", severity=severity), file=sys.stderr)
+            return 2
+        flags = {**({"security": True} if security else {}), **({"severity": "high"} if severity else {})}
         if on:
             r = find(on)
             if not r:
                 print(M("observe.unknown_id", id=on), file=sys.stderr)
                 return 1
             record(r["tool"], on, {"workaround": scrub(work, 1000) if work else None, "class": cls,
-                                   "note": scrub(" ".join(rest), 1000) if rest else None, "source": "manual"})
+                                   "note": scrub(" ".join(rest), 1000) if rest else None, "source": "manual", **flags})
             print(M("observe.updated", id=on))
             return 0
         if len(rest) < 2 or rest[0] not in tools():
@@ -922,14 +1093,14 @@ def main(argv):
         key = normalize(f"manual {what} {error or ''}")
         r = record(tool, rid(tool, key), {"source": "manual", "kind": "note", "call": scrub(what, 200),
                                           "error": scrub(error or "", 500), "key": key, "workaround": scrub(work, 1000) if work else None,
-                                          "class": cls, "account": account_name(), "project": os.path.basename(os.getcwd())})
+                                          "class": cls, "account": account_name(), "project": os.path.basename(os.getcwd()), **flags})
         print(M("observe.added", id=r["id"], tool=tool))
         return 0
     if sub == "list":
         raw, js, show_all = "--raw" in rest, "--json" in rest, "--all" in rest
         which = next((x for x in rest if not x.startswith("--")), None)
         recs = [view(r, raw) for r in all_records() if (not which or r.get("tool") == which) and (show_all or r.get("status") not in ("done", "reported"))]
-        recs.sort(key=lambda r: -float(r.get("last_seen") or 0))
+        recs.sort(key=lambda r: (not r.get("security"), r.get("severity") != "high", -float(r.get("last_seen") or 0)))
         if js:
             print(json.dumps(recs, ensure_ascii=False, indent=1))
             return 0
@@ -938,7 +1109,7 @@ def main(argv):
             return 0
         for r in recs:
             flag = " ?" if r.get("attribution") == "uncertain" else ""
-            print(f"{r['id']:<22} {r.get('status') or '':<8} {r.get('class') or '-':<2} ×{r.get('count'):<4} {when(r.get('last_seen'))}  "
+            print(f"{flag_of(r):<5}{r['id']:<22} {r.get('status') or '':<8} {r.get('class') or '-':<2} ×{r.get('count'):<4} {when(r.get('last_seen'))}  "
                   f"{r.get('call') or ''}: {(r.get('error') or '')[:90]}{flag}")
         return 0
     if sub == "show":
@@ -975,19 +1146,22 @@ def main(argv):
         return 0
     if sub == "export":
         which = rest[0] if rest else ""
-        recs = sorted((view(r) for r in all_records() if r.get("tool") == which), key=lambda r: -int(r.get("count") or 0))
-        print("| id | classe | volte | ultima | chiamata | errore | aggiramento |\n|---|---|---|---|---|---|---|")
+        recs = sorted((view(r) for r in all_records() if r.get("tool") == which),
+                      key=lambda r: (not r.get("security"), r.get("severity") != "high", -int(r.get("count") or 0)))
+        print("| flag | id | classe | volte | ultima | chiamata | errore | aggiramento |\n|---|---|---|---|---|---|---|---|")
         for r in recs:
             cell = lambda s: str(s or "").replace("|", "\\|").replace("\n", " ")  # noqa: E731
-            print(f"| {r['id']} | {r.get('class') or ''} | {r.get('count')} | {when(r.get('last_seen'))} | `{cell(r.get('call'))}` | "
+            print(f"| {flag_of(r).strip()} | {r['id']} | {r.get('class') or ''} | {r.get('count')} | {when(r.get('last_seen'))} | `{cell(r.get('call'))}` | "
                   f"{cell(r.get('error'))} | {cell(r.get('workaround'))} |")
         return 0
     if sub == "report":
         send = opt(rest, "--send")
+        security = "--security" in rest
+        rest = [x for x in rest if x != "--security"]
         if not rest:
             print(M("observe.usage_report"), file=sys.stderr)
             return 2
-        return report(rest[0], send)
+        return report(rest[0], send, security=security)
     print(M("observe.usage"), file=sys.stderr)
     return 2
 
