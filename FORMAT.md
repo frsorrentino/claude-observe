@@ -46,3 +46,11 @@ higher than its own does not rewrite the file.
 
 A component that writes without Python (for example an MCP server run without its plugin) follows the same rules:
 same file, same `id` computation, `source` of its own, and never parameter values.
+
+## When observations are offered for sending
+
+Any session, at start, for a plugin with a `repo` in `tool.json`, when its unsent records (status not `done` or
+`reported`, attribution not `uncertain`, no `fixed_in`) meet one of: count ≥ `propose_after` (3); oldest `first_seen`
+at least `propose_after_days` days ago (3; `0` = never by age); or a record with `class` `D` (a defect written by hand),
+at once. Then not again for `propose_every_days` days (7) for that plugin — `.proposed-<plugin>` in the state folder
+holds the time — and never in the maintainer's own session.

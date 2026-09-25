@@ -356,6 +356,44 @@ for f in box.glob(".proposed-*"):
 check("OB16 propose false → no offer", "DA INVIARE" not in start(home / "ws" / "clienti" / "acme-shop", tool=CM), "")
 cfg.write_text(json.dumps(BASE))
 
+# OB16b (25/09): la proposta parte anche con poche osservazioni quando la piu' vecchia aspetta da propose_after_days,
+# o subito con una classe D; due osservazioni di ieri: nessuna proposta
+CMJ = box / "claude-master.jsonl"
+
+
+def seed(*recs_):
+    for f in box.glob(".proposed-*"):
+        f.unlink()
+    now = time.time()
+    rows = []
+    for i, (age_days, cls) in enumerate(recs_):
+        t = now - age_days * 86400
+        rows.append({"v": 1, "id": f"claude-master-{i:08d}", "tool": "claude-master", "source": "hook-bash", "kind": "error",
+                     "call": f"claude-master cmd{i}", "error": f"errore {i}", "key": f"k{i}", "count": 1, "first_seen": t, "last_seen": t,
+                     "examples": [], "workaround": None, "class": cls, "status": "new"})
+    CMJ.write_text("".join(json.dumps(r) + "\n" for r in rows))
+
+
+offer = lambda: "DA INVIARE claude-master" in start(home / "ws" / "clienti" / "acme-shop", tool=CM)  # noqa: E731
+cfg.write_text(json.dumps(BASE))
+seed((1, None), (1, None))
+check("OB16b two observations from yesterday, below propose_after and younger than propose_after_days → no offer", not offer(), CMJ.read_text()[-200:])
+seed((4, None), (1, None))
+check("OB16b two observations, the oldest 4 days old (≥ propose_after_days 3) → offer", offer(), "")
+seed((0, "D"))
+check("OB16b one observation of class D (a defect marked by hand), from today → offer at once", offer(), "")
+seed((0, None), (0, None), (0, None))
+check("OB16b three observations from today (≥ propose_after) → offer", offer(), "")
+cfg.write_text(json.dumps({**BASE, "propose_after_days": 0}))
+seed((10, None))
+check("OB16b propose_after_days 0 → age never counts: one 10-day-old observation, no offer", not offer(), "")
+cfg.write_text(json.dumps({**BASE, "propose_after_days": 1}))
+seed((2, None))
+p_a = offer(); p_b = offer()
+check("OB16b propose_after_days 1: a 2-day-old observation → offer, and not again within propose_every_days", p_a and not p_b, f"{p_a} {p_b}")
+cfg.write_text(json.dumps(BASE))
+CMJ.unlink()
+
 # OB17-OB19
 (home / ".claude" / "plugins").mkdir(parents=True, exist_ok=True)
 (home / ".claude" / "plugins" / "installed_plugins.json").write_text(json.dumps({"plugins": {"chrome-bridge@local": [{"version": "1.18.0"}]}}))

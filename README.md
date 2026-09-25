@@ -21,6 +21,12 @@ repo), one copy per plugin, checked by hash at every release of that plugin.
 
 Turn it off: `{"enabled": false}` in `~/.config/claude-observe/config.json`. Stop the offers only: `{"propose": false}`.
 
+When the offer comes (config keys in `~/.config/claude-observe/config.json`): at the start of any session, for a plugin
+whose unsent observations meet one of three conditions — they are at least `propose_after` (3); or the oldest of them has
+waited at least `propose_after_days` days (3; `0` never counts age), so one or two observations are not forgotten for
+ever; or one of them is marked class `D`, a defect of the plugin, which is offered at once. Between two offers for the
+same plugin at least `propose_every_days` days (7) pass, and the session that maintains the plugin is never asked.
+
 ## For plugin maintainers
 
 1. Add `<plugin-root>/observe/tool.json`:

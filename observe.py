@@ -63,7 +63,7 @@ VERBS = {"arm", "list", "show", "add", "mark", "export", "report", "hook", "stat
          "open", "close", "check"}
 CLASSES = ("D", "L", "S", "done", "new")
 DEFAULTS = {"enabled": True, "dir": "", "max_records": 2000, "max_days": 90, "anonymizer": "", "blocklist": "",
-            "propose": True, "propose_after": 3, "propose_every_days": 7, "language": "", "tools": {}}
+            "propose": True, "propose_after": 3, "propose_after_days": 3, "propose_every_days": 7, "language": "", "tools": {}}
 MSG = {
  "it": {
   "observe.summary": "OSSERVAZIONI {tool}: {new} nuove, {again} ricorrenti — `{cmd} list {tool}` (triage: `observe mark ID D|L|S|done`)",
@@ -682,18 +682,36 @@ def pending(tool):
             if r.get("status") not in ("done", "reported") and r.get("attribution") != "uncertain" and not r.get("fixed_in")]
 
 
+def due(pend, now=None):
+    """Le osservazioni in attesa meritano una proposta quando (25/09/2026): sono almeno observe.propose_after; oppure la
+    piu' vecchia aspetta da almeno observe.propose_after_days giorni (0 = mai per eta'), cosi' chi ne ha una o due
+    non resta senza proposta per sempre; oppure una ha classe D, un difetto nostro segnato a mano: subito."""
+    if not pend:
+        return False
+    now = now or time.time()
+    if len(pend) >= int(O.get("propose_after") or 3):
+        return True
+    if any(r.get("class") == "D" for r in pend):
+        return True
+    days = O.get("propose_after_days")
+    days = 3.0 if days is None else float(days or 0)
+    oldest = min(float(r.get("first_seen") or now) for r in pend)
+    return days > 0 and now - oldest >= days * 86400
+
+
 def proposals(real, mine_tools=()):
-    """SessionStart in una sessione qualsiasi: se uno strumento con un repo ha accumulato osservazioni da inviare, una riga
-    che dice a Claude di proporre l'invio (un solo si') in un momento naturale. Non piu' di una volta ogni
-    observe.propose_every_days per strumento, mai nella sessione che lo mantiene."""
+    """SessionStart in una sessione qualsiasi: se uno strumento con un repo ha osservazioni da inviare che lo meritano
+    (vedi `due`), una riga che dice a Claude di proporre l'invio (un solo si') in un momento naturale. Non piu' di una
+    volta ogni observe.propose_every_days per strumento, mai nella sessione che lo mantiene."""
     if not O.get("propose", True):
         return []
     out, now = [], time.time()
     for name, t in tools().items():
         if name in mine_tools or not t.get("repo"):
             continue
-        n = len(pending(name))
-        if n < int(O.get("propose_after") or 3):
+        pend = pending(name)
+        n = len(pend)
+        if not due(pend, now):
             continue
         f = box_dir() / f".proposed-{name}"
         try:
