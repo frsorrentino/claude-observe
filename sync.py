@@ -26,9 +26,18 @@ def sha(p):
     return hashlib.sha256(Path(p).read_bytes()).hexdigest()
 
 
-def matcher(tool):
+def matcher(tool, plugin):
+    """Per ogni server MCP due prefissi: il nome nudo mcp__<server>__ (server configurato a mano) e quello plugin-scoped
+    mcp__plugin_<plugin>_<server>__, l'unico che Claude Code usa con il plugin installato (25/09: chrome-bridge non
+    registrava nulla finche' non l'ha aggiunto a mano)."""
     m = tool.get("match") or {}
-    parts = [re.escape(p) + ".*" for p in m.get("mcp") or [] if p]
+    prefixes = []
+    for p in m.get("mcp") or []:
+        mm = re.fullmatch(r"mcp__(?!plugin_)(.+)__", p or "")
+        for q in ([p, f"mcp__plugin_{plugin}_{mm.group(1)}__"] if mm and plugin else [p]):
+            if q and q not in prefixes:
+                prefixes.append(q)
+    parts = [re.escape(p) + ".*" for p in prefixes]
     if m.get("bash"):
         parts.append("Bash")
     return "|".join(parts)
@@ -62,7 +71,11 @@ def main(argv):
     hooks = doc.setdefault("hooks", {})
     for ev in ("PostToolUseFailure", "SessionStart", "Stop"):
         hooks[ev] = [e for e in hooks.get(ev, []) if not any("/observe/observe.py" in h.get("command", "") for h in e.get("hooks", []))]
-    mt = matcher(tool)
+    try:
+        plugin = json.loads((root / ".claude-plugin" / "plugin.json").read_text()).get("name") or tool.get("name")
+    except (OSError, ValueError):
+        plugin = tool.get("name")
+    mt = matcher(tool, plugin)
     if mt:
         hooks["PostToolUseFailure"].append({"matcher": mt, "hooks": [{"type": "command", "command": f"{CMD} hook", "timeout": 5}]})
     hooks["SessionStart"].append({"hooks": [{"type": "command", "command": f"{CMD} session-start", "timeout": 10}]})
@@ -75,7 +88,12 @@ def main(argv):
     # il comando /<plugin>:observe (send, list, mark, add…), uguale in ogni plugin: generato dal modello della fonte se
     # manca o se e' una copia generata; un file scritto a mano resta com'e', con un avviso
     cmd_f = root / "commands" / "observe.md"
-    text = (SRC / "commands" / "observe.md").read_text().replace("{name}", tool["name"]).replace("{cmd}", tool.get("command") or CMD)
+    # allowed-tools: il solo comando che il file lancia (anche le opzioni di send sono «<cmd> report …»), mai Bash nudo:
+    # il portale della directory lo mette in hold come «Allowed tools broad» (26/09)
+    cmd = tool.get("command") or CMD
+    allowed = "Bash(python3 *)" if cmd == CMD else f"Bash({cmd} *)"
+    text = ((SRC / "commands" / "observe.md").read_text().replace("{name}", tool["name"]).replace("{cmd}", cmd)
+            .replace("{allowed}", allowed))
     if not cmd_f.exists() or MARK in cmd_f.read_text():
         cmd_f.parent.mkdir(exist_ok=True)
         cmd_f.write_text(text)

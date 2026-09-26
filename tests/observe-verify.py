@@ -32,6 +32,10 @@ OB23 convivenza con le copie gia' distribuite (solo flock su <dir>/.lock): la co
 OB24 benign_exits per script senza sottocomandi («external-exec.py»: [2]) e per script con sottocomando
 OB25 sync.py rifiuta una fonte con observe.py non committato; check.sh confronta con la fonte committata
 OB26 lock occupato oltre l'attesa: la voce va in <plugin>.pending.jsonl e il prossimo scrittore la incorpora; niente si perde
+OB30 `known` col nome nudo scatta anche sul nome plugin-scoped (mcp__plugin_<plugin>_<server>__<tool>)
+OB31 lo stesso errore sotto i due nomi: un record, count 2, il nome originale negli esempi
+OB32 commands/observe.md generato: allowed-tools stretto (Bash(python3 *) o Bash(<command> *)), mai Bash nudo
+OB33 sync.py: matcher PostToolUseFailure con nome nudo e plugin-scoped per ogni server MCP, senza doppioni
 """
 import json
 import os
@@ -700,6 +704,49 @@ check("OB28 sync.py writes commands/observe.md from the source template (send, s
       and json.loads((plug2 / "hooks" / "hooks.json").read_text())["hooks"]["Stop"][0]["hooks"][0]["command"].endswith('observe.py" stop') and json.loads((plug2 / "hooks" / "hooks.json").read_text())["hooks"]["Stop"][0]["hooks"][0]["timeout"] == 5
       and chk28.returncode == 0, sync28.stdout + sync28.stderr + chk28.stderr)
 check("OB28 a hand-written commands/observe.md is left as it is, with a note", (plug3 / "commands" / "observe.md").read_text() == "# mio\n" and "scritto a mano" in sync28b.stdout, sync28b.stdout)
+
+# OB30 (26/09): con il plugin installato Claude Code chiama i tool mcp__plugin_<plugin>_<server>__<tool>; `known` in tool.json
+# e i record usano il nome nudo mcp__<server>__<tool>: il confronto avviene sul nome senza il prefisso del plugin
+SCOPED = "mcp__plugin_chrome-bridge_chrome-bridge__"
+k30 = hook_out("Failed to capture tab: image readback failed", tool_name=SCOPED + "screenshot")
+check("OB30 known_hint: a `known` entry for mcp__chrome-bridge__screenshot fires on the plugin-scoped name too", "1.20.0" in k30, k30)
+
+# OB31: lo stesso errore sotto i due nomi e' un record solo; il nome come lo ha visto Claude Code resta nel record
+fail("mcp__chrome-bridge__scroll", {"y": 1}, "scroll target gone", tool=CB)
+fail(SCOPED + "scroll", {"y": 1}, "scroll target gone", tool=CB)
+r31 = [x for x in recs("chrome-bridge") if "scroll target gone" in (x.get("error") or "")]
+check("OB31 the same error under the bare and the plugin-scoped name → one record, count 2, both original names kept",
+      len(r31) == 1 and r31[0]["count"] == 2 and r31[0]["call"] == "mcp__chrome-bridge__scroll"
+      and [e.get("call") for e in r31[0]["examples"]] == ["mcp__chrome-bridge__scroll", SCOPED + "scroll"], json.dumps(r31)[:600])
+
+# OB32: allowed-tools del comando generato: mai «Bash» nudo (il portale della directory lo mette in hold), la forma
+# stretta del comando che il file lancia davvero
+cmd32 = (plug2 / "commands" / "observe.md").read_text()
+plug32 = tmp / "plugin-cmd"
+(plug32 / "observe").mkdir(parents=True)
+(plug32 / "observe" / "tool.json").write_text(CM.read_text())
+sync32 = subprocess.run([sys.executable, str(SRC1 / "sync.py"), str(plug32)], capture_output=True, text=True)
+cmd32b = (plug32 / "commands" / "observe.md").read_text() if sync32.returncode == 0 else ""
+check("OB32 generated observe.md: allowed-tools Bash(python3 *) for the default command, Bash(<command> *) for a plugin command; never bare Bash",
+      "\nallowed-tools: Bash(python3 *)\n" in cmd32 and "\nallowed-tools: Bash(claude-master observe *)\n" in cmd32b
+      and "\nallowed-tools: Bash\n" not in cmd32 + cmd32b, cmd32[:300] + cmd32b[:300] + sync32.stderr)
+
+# OB33: per ogni server MCP il matcher di PostToolUseFailure copre il nome nudo e quello plugin-scoped (col nome del
+# plugin in .claude-plugin/plugin.json, se c'e')
+plug33 = tmp / "plugin-mcp"
+(plug33 / "observe").mkdir(parents=True)
+(plug33 / ".claude-plugin").mkdir()
+(plug33 / ".claude-plugin" / "plugin.json").write_text(json.dumps({"name": "cb-plugin", "version": "1.0.0"}))
+(plug33 / "observe" / "tool.json").write_text(json.dumps({"name": "chrome-bridge", "repo": "x/y", "match": {"mcp": ["mcp__chrome-bridge__"], "bash": ["cb"]}}))
+sync33 = subprocess.run([sys.executable, str(SRC1 / "sync.py"), str(plug33)], capture_output=True, text=True)
+mt33 = json.loads((plug33 / "hooks" / "hooks.json").read_text())["hooks"]["PostToolUseFailure"][0]["matcher"] if sync33.returncode == 0 else ""
+(plug33 / "observe" / "tool.json").write_text(json.dumps({"name": "chrome-bridge", "repo": "x/y", "match": {"mcp": ["mcp__chrome-bridge__", "mcp__plugin_cb-plugin_chrome-bridge__"]}}))
+subprocess.run([sys.executable, str(SRC1 / "sync.py"), str(plug33)], capture_output=True, text=True)
+mt33b = json.loads((plug33 / "hooks" / "hooks.json").read_text())["hooks"]["PostToolUseFailure"][0]["matcher"]
+check("OB33 sync.py matcher: bare mcp__<server>__.* and plugin-scoped mcp__plugin_<plugin>_<server>__.* for each server, Bash kept",
+      all(re.fullmatch(mt33, n) for n in ("mcp__chrome-bridge__wait_for", "mcp__plugin_cb-plugin_chrome-bridge__wait_for", "Bash"))
+      and not re.fullmatch(mt33, "mcp__plugin_other_chrome-bridge__wait_for") and not re.fullmatch(mt33, "mcp__other__x"), mt33 + sync33.stderr)
+check("OB33 a plugin-scoped prefix already listed in tool.json is not duplicated", mt33b.count("mcp__plugin_") == 1 and re.fullmatch(mt33b, "mcp__plugin_cb-plugin_chrome-bridge__x"), mt33b)
 
 shutil.rmtree(tmp, ignore_errors=True)
 print(f"\n{OKS}/{OKS + len(FAILS)} OK" + (", FAIL: " + ", ".join(FAILS) if FAILS else ""))

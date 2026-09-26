@@ -55,7 +55,8 @@ same plugin at least `propose_every_days` days (7) pass, and the session that ma
    settings, `gh api -X PUT repos/<repo>/private-vulnerability-reporting`), otherwise a `mailto:` or a URL, the one in
    your SECURITY.md. Without it the report is refused and the user is told to ask you — never a public issue.
 2. `python3 sync.py <plugin-root>`: copies `observe.py`, writes `observe/SOURCE`, adds the three hooks to
-   `hooks/hooks.json` (PostToolUseFailure, SessionStart, Stop — the line on screen), and generates
+   `hooks/hooks.json` (PostToolUseFailure, whose matcher covers each MCP server under both names, `mcp__<server>__`
+   and the installed plugin's `mcp__plugin_<plugin>_<server>__`; SessionStart; Stop — the line on screen), and generates
    `commands/observe.md`, the `/<plugin>:observe send|send --security|list|mark|add` command, from the template in
    `commands/` (a hand-written one is left alone). Idempotent.
 3. In the plugin's release script: `bash check.sh <plugin-root>` fails if the copy differs from the source.

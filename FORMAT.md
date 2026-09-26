@@ -29,15 +29,15 @@ higher than its own does not rewrite the file.
 | `tool` | string | plugin name (`tool.json` → `name`) |
 | `source` | string | `hook-mcp`, `hook-bash`, `manual`, or another component (`relay`, `server`) |
 | `kind` | string | `error` or `note` |
-| `call` | string | the **full** MCP tool name as Claude Code shows it (`mcp__<server>__<tool>`, also when an MCP server writes the record itself), or the redacted command (`tool subcommand --flag <ARG>`) |
+| `call` | string | the **full** MCP tool name as Claude Code showed it the first time (`mcp__<server>__<tool>`, or `mcp__plugin_<plugin>_<server>__<tool>` when the plugin is installed; also when an MCP server writes the record itself), or the redacted command (`tool subcommand --flag <ARG>`) |
 | `error` | string | the error, scrubbed (home as `~`, emails, URL queries, secrets, typed values removed), ≤ 300 chars |
-| `key` | string | normalized `call` + " " + `error` (quoted strings → `<STR>`, paths → `<PATH>`, digits → `<N>`, spaces collapsed, ≤ 300 chars): the deduplication key; a server gets the same `id` as the hook only if its error text is the one Claude Code shows |
+| `key` | string | normalized `call`, without the `plugin_<plugin>_` part of an MCP name (the same tool under both names is one record), + " " + `error` (quoted strings → `<STR>`, paths → `<PATH>`, digits → `<N>`, spaces collapsed, ≤ 300 chars): the deduplication key; a server gets the same `id` as the hook only if its error text is the one Claude Code shows |
 | `count` | int | how many times it happened |
 | `first_seen`, `last_seen` | float | epoch seconds |
 | `account` | string | basename of the Claude Code config folder (`.claude`, `.claude-work`…) |
 | `project` | string | basename of the session's folder |
 | `context` | object | `tool_version`, `claude_code`, `model`, `os`, `recent_tools` (names only) |
-| `examples` | list | at most 3: `at`, `input_shape` (field names and text lengths, never values), `error_raw`, `session_id`, `duration_ms`, `context` |
+| `examples` | list | at most 3: `at`, `call` (MCP: the name of that occurrence), `input_shape` (field names and text lengths, never values), `error_raw`, `session_id`, `duration_ms`, `context` |
 | `workaround`, `class`, `note` | string | written by hand (`add --on`, `mark`): class `D` our defect, `L` someone else's limit, `S` the site's behaviour |
 | `status` | string | `new`, `triaged`, `done`, `reported` |
 | `fixed_in` | string | version that fixed it: never offered as an issue again |
