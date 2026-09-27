@@ -34,8 +34,12 @@ OB25 sync.py rifiuta una fonte con observe.py non committato; check.sh confronta
 OB26 lock occupato oltre l'attesa: la voce va in <plugin>.pending.jsonl e il prossimo scrittore la incorpora; niente si perde
 OB30 `known` col nome nudo scatta anche sul nome plugin-scoped (mcp__plugin_<plugin>_<server>__<tool>)
 OB31 lo stesso errore sotto i due nomi: un record, count 2, il nome originale negli esempi
-OB32 commands/observe.md generato: allowed-tools stretto (Bash(python3 *) o Bash(<command> *)), mai Bash nudo
+OB32 commands/observe.md generato: allowed-tools stretto (Bash(bash *observe/py.sh*) o Bash(<command> *)), mai Bash nudo
 OB33 sync.py: matcher PostToolUseFailure con nome nudo e plugin-scoped per ogni server MCP, senza doppioni
+OB34 py.sh (Windows, 27/09): salta un python3 che esce 9009 (l'alias dello Store), poi python, poi py -3; PYTHONUTF8;
+     scelta in cache; senza Python una riga su stderr e uscita 0; l'hook scritto da sync.py registra attraverso py.sh
+OB35 testi fuori da cp1252 (→, emoji, CJK): registrati e leggibili anche con stdio in cp1252, accanto a un record UTF-8
+     scritto da Node; nessun open() senza encoding (EncodingWarning); la versione di Claude Code da un'installazione npm
 """
 import json
 import os
@@ -48,6 +52,12 @@ import tempfile
 import time
 import urllib.parse
 from pathlib import Path
+
+for _s in (sys.stdout, sys.stderr):   # su Windows la console e' cp1252: i nomi dei test hanno → e «»
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
 
 REPO = Path(__file__).resolve().parent.parent
 OBS = REPO / "observe.py"
@@ -86,14 +96,16 @@ PIXEL = {"CLAUDE_CONFIG_DIR": str(home / ".claude-pixel")}
 
 
 def env(extra=None, tool=CB):
-    e = {"PATH": f"{home / 'bin'}:{os.environ['PATH']}", "HOME": str(home), "LANG": "it_IT.UTF-8", "XDG_STATE_HOME": str(state),
+    e = {"PATH": f"{home / 'bin'}{os.pathsep}{os.environ['PATH']}", "HOME": str(home), "LANG": "it_IT.UTF-8", "XDG_STATE_HOME": str(state),
          "CLAUDE_OBSERVE_CONFIG": str(cfg), "CLAUDE_OBSERVE_TOOL": str(tool)}
+    # Windows: senza SYSTEMROOT il Python figlio non parte («failed to get random numbers»)
+    e.update({k: os.environ[k] for k in ("SYSTEMROOT", "USERPROFILE") if k in os.environ})
     e.update(extra or PERSONAL)
     return e
 
 
 def obs(*args, extra=None, stdin=None, cwd=None, tool=CB):
-    return subprocess.run([sys.executable, str(OBS), *args], capture_output=True, text=True, env=env(extra, tool), input=stdin,
+    return subprocess.run([sys.executable, str(OBS), *args], capture_output=True, text=True, encoding="utf-8", errors="replace", env=env(extra, tool), input=stdin,
                           cwd=cwd or str(home), timeout=60)
 
 
@@ -105,18 +117,19 @@ def fail(tool_name, tool_input, error, cwd=None, extra=None, tool=None, **kw):
     p = {"hook_event_name": "PostToolUseFailure", "session_id": "S-1", "cwd": str(cwd or home / "ws" / "clienti" / "acme-shop"),
          "tool_name": tool_name, "tool_input": tool_input, "tool_use_id": "t1", "error": error, "is_interrupt": False,
          "duration_ms": 12, **kw}
-    return obs("hook", stdin=json.dumps(p), extra=extra, tool=tool or tool_for(tool_name))
+    # UTF-8 vero, come lo manda Claude Code (json.dumps di default scriverebbe \u2192 e nasconderebbe cp1252)
+    return obs("hook", stdin=json.dumps(p, ensure_ascii=False), extra=extra, tool=tool or tool_for(tool_name))
 
 
 def recs(tool):
     try:
-        return [json.loads(l) for l in (box / f"{tool}.jsonl").read_text().splitlines() if l.strip()]
+        return [json.loads(l) for l in (box / f"{tool}.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
     except OSError:
         return []
 
 
 def raw_box():
-    return "\n".join(p.read_text() for p in box.glob("*.jsonl")) if box.exists() else ""
+    return "\n".join(p.read_text(encoding="utf-8") for p in box.glob("*.jsonl")) if box.exists() else ""
 
 
 def clean_source(name):
@@ -727,8 +740,8 @@ plug32 = tmp / "plugin-cmd"
 (plug32 / "observe" / "tool.json").write_text(CM.read_text())
 sync32 = subprocess.run([sys.executable, str(SRC1 / "sync.py"), str(plug32)], capture_output=True, text=True)
 cmd32b = (plug32 / "commands" / "observe.md").read_text() if sync32.returncode == 0 else ""
-check("OB32 generated observe.md: allowed-tools Bash(python3 *) for the default command, Bash(<command> *) for a plugin command; never bare Bash",
-      "\nallowed-tools: Bash(python3 *)\n" in cmd32 and "\nallowed-tools: Bash(claude-master observe *)\n" in cmd32b
+check("OB32 generated observe.md: allowed-tools Bash(bash *observe/py.sh*) for the default command (the launcher), Bash(<command> *) for a plugin command; never bare Bash",
+      "\nallowed-tools: Bash(bash *observe/py.sh*)\n" in cmd32 and 'bash "${CLAUDE_PLUGIN_ROOT}/observe/py.sh" "${CLAUDE_PLUGIN_ROOT}/observe/observe.py" ${ARGUMENTS}' in cmd32 and "\nallowed-tools: Bash(claude-master observe *)\n" in cmd32b
       and "\nallowed-tools: Bash\n" not in cmd32 + cmd32b, cmd32[:300] + cmd32b[:300] + sync32.stderr)
 
 # OB33: per ogni server MCP il matcher di PostToolUseFailure copre il nome nudo e quello plugin-scoped (col nome del
@@ -747,6 +760,109 @@ check("OB33 sync.py matcher: bare mcp__<server>__.* and plugin-scoped mcp__plugi
       all(re.fullmatch(mt33, n) for n in ("mcp__chrome-bridge__wait_for", "mcp__plugin_cb-plugin_chrome-bridge__wait_for", "Bash"))
       and not re.fullmatch(mt33, "mcp__plugin_other_chrome-bridge__wait_for") and not re.fullmatch(mt33, "mcp__other__x"), mt33 + sync33.stderr)
 check("OB33 a plugin-scoped prefix already listed in tool.json is not duplicated", mt33b.count("mcp__plugin_") == 1 and re.fullmatch(mt33b, "mcp__plugin_cb-plugin_chrome-bridge__x"), mt33b)
+
+# OB34 (27/09): su Windows `python3` e' l'alias del Microsoft Store (esce 9009, 49 in Git Bash, e command -v lo trova):
+# py.sh prova ogni candidato eseguendolo. Il PATH qui contiene solo gli stub e mkdir: nessun Python del sistema
+BASH = shutil.which("bash")
+PYSH = REPO / "py.sh"
+probe = tmp / "probe.py"
+probe.write_text("import json,os,sys;print(json.dumps({'exe':sys.executable,'utf8':os.environ.get('PYTHONUTF8'),"
+                 "'enc':sys.stdout.encoding,'args':sys.argv[1:]}))\n", encoding="utf-8")
+
+
+def stubs(name, **files):
+    d = tmp / "stubs" / name
+    d.mkdir(parents=True)
+    for exe in ("mkdir", "bash"):   # l'hook di sync.py chiama bash per nome
+        os.symlink(shutil.which(exe), d / exe)
+    for f, body in files.items():
+        if body is None:
+            os.symlink(sys.executable, d / f)
+        else:
+            (d / f).write_text(f"#!{BASH}\n{body}\n")
+            (d / f).chmod(0o755)
+    return d
+
+
+def pysh(d, *args, cache=None, extra=None):
+    e = {"PATH": str(d), "HOME": str(home), "XDG_CACHE_HOME": str(cache or d / "cache"), **(extra or {})}
+    return subprocess.run([BASH, str(PYSH), *args], capture_output=True, text=True, encoding="utf-8", env=e, timeout=30)
+
+
+store = "echo stub-called >> \"$(dirname \"$0\")/python3.log\"; echo 'Python non è stato trovato' >&2; exit 9009"
+d34 = stubs("store", python3=store, python=None)
+a34 = pysh(d34, str(probe), "x y")
+j34 = json.loads(a34.stdout or "{}")
+cache34 = d34 / "cache" / "claude-observe" / "python"
+check("OB34 py.sh: a python3 that exits 9009 (the Store alias) is skipped, python runs the script with its arguments, PYTHONUTF8=1 and stdout in UTF-8",
+      a34.returncode == 0 and j34.get("args") == ["x y"] and j34.get("utf8") == "1" and j34.get("enc", "").lower().replace("-", "") == "utf8",
+      a34.stdout + a34.stderr)
+(d34 / "python3.log").unlink(missing_ok=True)
+b34 = pysh(d34, str(probe))
+check("OB34 py.sh caches the choice: the next run does not probe the Store alias again",
+      cache34.read_text().strip() == "python" and b34.returncode == 0 and not (d34 / "python3.log").exists(), cache34.read_text() if cache34.exists() else "no cache")
+cache34.write_text("python-disinstallato\n")
+c34 = pysh(d34, str(probe))
+check("OB34 a cached interpreter that no longer exists → probed again", c34.returncode == 0 and '"utf8": "1"' in c34.stdout
+      and cache34.read_text().strip() == "python", c34.stdout + c34.stderr)
+d34p = stubs("pylauncher", python3=store, py=f'[ "$1" = -3 ] || exit 1; shift; exec "{sys.executable}" "$@"')
+p34 = pysh(d34p, str(probe))
+check("OB34 no python3 nor python, the Windows launcher py -3 → used", p34.returncode == 0 and '"utf8": "1"' in p34.stdout
+      and (d34p / "cache" / "claude-observe" / "python").read_text().strip() == "py -3", p34.stdout + p34.stderr)
+d34n = stubs("nopython", python3=store)
+n34 = pysh(d34n, str(probe))
+check("OB34 no Python at all → exit 0, nothing on stdout, one clear line on stderr",
+      n34.returncode == 0 and n34.stdout == "" and len(n34.stderr.strip().splitlines()) == 1 and "Python 3" in n34.stderr, repr(n34.stderr))
+o34 = pysh(d34n, str(probe), extra={"CLAUDE_OBSERVE_PY": sys.executable})
+check("OB34 CLAUDE_OBSERVE_PY overrides the probe", o34.returncode == 0 and '"utf8": "1"' in o34.stdout, o34.stdout + o34.stderr)
+# l'hook come lo scrive sync.py, con python3 = alias dello Store: registra (prima del 27/09 su Windows non registrava nulla)
+hook34 = json.loads((plug / "hooks" / "hooks.json").read_text(encoding="utf-8"))["hooks"]["PostToolUseFailure"][0]["hooks"][0]["command"]
+cfg.write_text(json.dumps(BASE))
+e34 = {**env(tool=plug / "observe" / "tool.json"), "PATH": str(d34), "CLAUDE_PLUGIN_ROOT": str(plug), "XDG_CACHE_HOME": str(tmp / "cache34")}
+p34h = {"hook_event_name": "PostToolUseFailure", "session_id": "S-34", "cwd": str(home), "tool_name": "mcp__chrome-bridge__wait_for",
+        "tool_input": {"selector": "#x"}, "tool_use_id": "t34", "error": "OB34 attesa scaduta", "is_interrupt": False}
+h34 = subprocess.run([BASH, "-c", hook34], input=json.dumps(p34h), capture_output=True, text=True, encoding="utf-8", env=e34, timeout=30)
+check("OB34 the hook command written by sync.py goes through py.sh and records with python3 being the Store alias",
+      hook34.startswith('bash "${CLAUDE_PLUGIN_ROOT}/observe/py.sh"') and h34.returncode == 0
+      and any("OB34 attesa scaduta" in (x.get("error") or "") for x in recs("chrome-bridge")), hook34 + h34.stderr)
+chk34 = subprocess.run(["bash", str(SRC1 / "check.sh"), str(plug33)], capture_output=True, text=True)
+hk34 = plug33 / "hooks" / "hooks.json"
+hk34.write_text(hk34.read_text(encoding="utf-8").replace('bash \\"${CLAUDE_PLUGIN_ROOT}/observe/py.sh\\" ', "python3 "), encoding="utf-8")
+chk34b = subprocess.run(["bash", str(SRC1 / "check.sh"), str(plug33)], capture_output=True, text=True)
+check("OB34 check.sh: ok with py.sh copied and in the hooks; FAIL on hooks that call python3 bare",
+      chk34.returncode == 0 and (plug33 / "observe" / "py.sh").read_bytes() == PYSH.read_bytes() and "py.sh" in json.loads((plug33 / "observe" / "SOURCE").read_text())["sha256"]
+      and chk34b.returncode == 1 and "python3 nudo" in chk34b.stderr, chk34.stdout + chk34.stderr + chk34b.stderr)
+
+# OB35 (27/09): Windows Python senza PYTHONUTF8 scrive cp1252 e perdeva in silenzio gli errori con →, emoji, CJK; un record
+# UTF-8 scritto da Node (observe.js di chrome-bridge) fermava ogni scrittura successiva e faceva cadere `list`
+node_rec = {"v": 1, "id": "chrome-bridg-node0001", "tool": "chrome-bridge", "source": "relay", "call": "relay", "error": "Knopf 送信 nicht klickbar",
+            "count": 1, "first_seen": time.time(), "last_seen": time.time(), "examples": [], "status": "new"}
+with open(box / "chrome-bridge.jsonl", "a", encoding="utf-8") as f:
+    f.write(json.dumps(node_rec, ensure_ascii=False) + "\n")
+cp = {**PERSONAL, "PYTHONIOENCODING": "cp1252"}
+texts35 = ["Timeout → page hidden", "Button 🔴 not clickable 送信"]
+for i, t in enumerate(texts35):
+    fail("mcp__chrome-bridge__click", {"ref": f"n{i}"}, t, extra=cp)
+got35 = {x.get("error") for x in recs("chrome-bridge")}
+check("OB35 errors outside cp1252 (→, emoji, CJK) are recorded, with stdio in cp1252 and next to a UTF-8 record written by Node",
+      all(any(t in (g or "") for g in got35) for t in texts35 + ["送信 nicht"]), sorted(g for g in got35 if g)[-5:])
+l35 = obs("list", "--all", extra=cp)
+check("OB35 list prints them with stdio in cp1252", l35.returncode == 0 and "→" in l35.stdout and "送信" in l35.stdout, l35.stdout[-400:] + l35.stderr[-300:])
+warn = []
+for args, stdin in ((["hook"], json.dumps({"hook_event_name": "PostToolUseFailure", "tool_name": "mcp__chrome-bridge__click",
+                                            "tool_input": {}, "error": "Timeout → again"})), (["list", "--all"], None),
+                    (["export", "chrome-bridge"], None), (["add", "chrome-bridge", "nota → a mano"], None),
+                    (["session-start"], json.dumps({"cwd": str(home / "ws" / "chrome-bridge")})), (["stop"], json.dumps({"cwd": str(home)}))):
+    r35 = subprocess.run([sys.executable, "-X", "warn_default_encoding", str(OBS), *args], input=stdin, capture_output=True, text=True,
+                         encoding="utf-8", env=env(), cwd=str(home), timeout=60)
+    warn += [f"{args[0]}: {l}" for l in r35.stderr.splitlines() if "EncodingWarning" in l]
+check("OB35 no open() without an encoding in hook, list, export, add, session-start, stop (EncodingWarning)", not warn, "\n".join(warn))
+npm = tmp / "npm" / "node_modules" / "@anthropic-ai" / "claude-code"
+(npm / "bin").mkdir(parents=True)
+(npm / "package.json").write_text(json.dumps({"name": "@anthropic-ai/claude-code", "version": "2.1.283"}))
+fail("mcp__chrome-bridge__hover", {"ref": "n9"}, "OB35 npm version", extra={**PERSONAL, "CLAUDE_CODE_EXECPATH": str(npm / "bin" / "claude.exe")})
+c35 = next((x.get("context") or {} for x in recs("chrome-bridge") if "OB35 npm version" in (x.get("error") or "")), {})
+check("OB35 Claude Code version from an npm install (bin/claude.exe → package.json), as on Windows", c35.get("claude_code") == "2.1.283", json.dumps(c35))
 
 shutil.rmtree(tmp, ignore_errors=True)
 print(f"\n{OKS}/{OKS + len(FAILS)} OK" + (", FAIL: " + ", ".join(FAILS) if FAILS else ""))

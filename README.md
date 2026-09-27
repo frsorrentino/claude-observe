@@ -54,7 +54,7 @@ same plugin at least `propose_every_days` days (7) pass, and the session that ma
    private vulnerability report on `repo` (enable «Private vulnerability reporting» in the repository's security
    settings, `gh api -X PUT repos/<repo>/private-vulnerability-reporting`), otherwise a `mailto:` or a URL, the one in
    your SECURITY.md. Without it the report is refused and the user is told to ask you — never a public issue.
-2. `python3 sync.py <plugin-root>`: copies `observe.py`, writes `observe/SOURCE`, adds the three hooks to
+2. `python3 sync.py <plugin-root>`: copies `observe.py` and its launcher `py.sh`, writes `observe/SOURCE`, adds the three hooks to
    `hooks/hooks.json` (PostToolUseFailure, whose matcher covers each MCP server under both names, `mcp__<server>__`
    and the installed plugin's `mcp__plugin_<plugin>_<server>__`; SessionStart; Stop — the line on screen), and generates
    `commands/observe.md`, the `/<plugin>:observe send|send --security|list|mark|add` command, from the template in
@@ -63,6 +63,19 @@ same plugin at least `propose_every_days` days (7) pass, and the session that ma
 4. Publish a SECURITY.md in the repository saying how to report privately (the advisory page, or the address).
 
 `observe.py` needs only the Python standard library. Record format: [FORMAT.md](FORMAT.md).
+
+## Windows
+
+Claude Code runs plugin hooks through Git Bash on Windows, so the hooks call `bash observe/py.sh observe.py …`, never
+`python3` directly: there `python3` is usually the Microsoft Store alias, which exists but only prints «Python was not
+found» (exit 9009). `py.sh` runs the first real Python 3.8+ among `python3`, `python` and `py -3`, remembers it in
+`~/.cache/claude-observe/python` (`CLAUDE_OBSERVE_PY` overrides it) and sets `PYTHONUTF8=1`; files are read and written
+as UTF-8 whatever the console code page.
+
+Requirements: Git for Windows (Claude Code already needs it) and Python 3.8+ installed from python.org, as `python` or
+`py`. Without Python nothing is recorded: each hook prints one line on stderr and exits 0, the session is not
+disturbed. What does not work on Windows: the lock is the folder lock only (no `flock`, see FORMAT.md), and `check.sh`
+and `sync.py` are maintainer tools meant for Linux or macOS.
 
 ## License
 
