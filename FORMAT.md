@@ -70,8 +70,9 @@ text. Sent records get `status` `reported` and `reported` = the advisory URL or 
 
 ## The anonymous path
 
-`report --send HASH --anonymous` (the «Send anonymously» button) does one `POST` to `observe.endpoint` (config; empty =
-the option is not offered) with `Content-Type: application/json` and exactly these fields: `plugin`, `version` (the
+Not live yet: the service does not exist, `observe.endpoint` is empty by default and the option is not offered.
+`report --send HASH --anonymous` (the «Send anonymously» button, once the endpoint exists) does one `POST` to
+`observe.endpoint` (config; empty = the option is not offered) with `Content-Type: application/json` and exactly these fields: `plugin`, `version` (the
 plugin's, or null), `security` (bool), `severity` (`high` or null), `title` and `body` — the anonymized draft, nothing
 else. The service answers JSON with `url` (the issue it opened); the records are marked `reported` with it. `report
 --later` («Not now») silences both offers for `propose_every_days`.

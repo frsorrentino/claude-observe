@@ -44,6 +44,11 @@ OB35 testi fuori da cp1252 (→, emoji, CJK): registrati e leggibili anche con s
 OB36 privacy su Windows (invio anonimo): la home in ogni forma (C:\\Users\\x, C:/Users/x, /c/Users/x, /mnt/c/Users/x,
      \\\\?\\C:\\Users\\x, \\\\ dentro JSON, USERPROFILE fuori da Users, maiuscole) e il nome utente come segmento: ne' nel file
      ne' nella bozza di report; i testi senza percorsi restano come sono
+OB37 `send` senza nome dello strumento (come lo lancia /<plugin>:observe send): lo strumento della copia; anche --security
+OB38 la nota di `add --on ID` entra nella bozza (solo dai record di questo account)
+OB39 i nomi di file degli errori escono come <file>.ext (anche con spazi, in fondo a un percorso, nelle note); restano i
+     nomi del plugin stesso, quelli generici e gli host degli URL; il file locale non cambia
+OB40 onesta' (27/09): l'endpoint anonimo non c'e' ancora; README e comando non promettono «Send anonymously»
 """
 import json
 import os
@@ -904,7 +909,70 @@ with open(box / "wintool.jsonl", "a", encoding="utf-8") as f:
     f.write("".join(json.dumps(x) + "\n" for x in old36))
 rep36b = obs("report", "wintool", extra=WIN, tool=WT)
 check("OB36 records written before this version: call and error scrubbed again in the draft, title included",
-      "old00001" not in rep36b.stdout and "x.sh" in rep36b.stdout and "mrossi" not in rep36b.stdout.lower(), rep36b.stdout[:800])
+      "old00001" not in rep36b.stdout and "~/<file>.sh" in rep36b.stdout and "mrossi" not in rep36b.stdout.lower(), rep36b.stdout[:800])
+
+# OB37 (27/09): `/<plugin>:observe send` lancia `observe.py send` senza lo strumento: usciva 2 con l'uso
+cfg.write_text(json.dumps(BASE))
+fake_gh()
+obs("add", "chrome-bridge", "nota per OB37")
+s37 = obs("send")
+s37s = obs("send", "--security")
+check("OB37 `send` with no tool name → the draft of the copy's own plugin, exit 0; `send --security` too",
+      s37.returncode == 0 and "BOZZA per frsorrentino/chrome-bridge" in s37.stdout and "nota per OB37" in s37.stdout
+      and s37s.returncode == 0 and "uso:" not in s37s.stderr, s37.stdout[-300:] + s37.stderr + s37s.stdout[-300:] + s37s.stderr)
+check("OB37 `send chrome-bridge` (the explicit form) still works and gives the same draft",
+      "Hash della bozza" in s37.stdout and sent_hash(obs("send", "chrome-bridge").stdout) == sent_hash(s37.stdout), "")
+
+# OB38 (27/09): la causa vera stava nella nota di `add --on` e la bozza la perdeva
+fail("mcp__chrome-bridge__navigate", {"url": "x"}, "OB38 navigate broke")
+id38 = next(x["id"] for x in recs("chrome-bridge") if x.get("error") == "OB38 navigate broke")
+obs("add", "--on", id38, "cause: fontconfig default config missing on Windows")
+d38 = obs("report", "chrome-bridge").stdout
+check("OB38 the note of `add --on` is in the draft, under its observation",
+      re.search(r"OB38 navigate broke.*\n  - note: cause: fontconfig default config missing on Windows", d38) is not None, d38[-800:])
+fail("mcp__chrome-bridge__navigate", {"url": "x"}, "OB38 other account", extra=PIXEL)
+id38b = next(x["id"] for x in recs("chrome-bridge") if x.get("error") == "OB38 other account")
+obs("add", "--on", id38b, "segreto del cliente", extra=PIXEL)
+check("OB38 a note written from another account does not go out", "segreto del cliente" not in obs("report", "chrome-bridge").stdout, "")
+
+# OB39 (27/09): «clip.mp4» nella bozza di fable-director. Una copia dentro un plugin, come la mette sync.py
+plug39 = tmp / "plugin-fd"
+(plug39 / "observe").mkdir(parents=True)
+(plug39 / "scripts").mkdir()
+(plug39 / "scripts" / "video-sheet.sh").write_text("#!/bin/sh\n")
+shutil.copyfile(OBS, plug39 / "observe" / "observe.py")
+FD = TOOLS / "fd.json"
+FD.write_text(json.dumps({"name": "fd", "repo": "me/fd", "match": {"bash": [r"video-sheet\.sh"]}}))
+
+
+def obs39(*args, stdin=None):
+    return subprocess.run([sys.executable, str(plug39 / "observe" / "observe.py"), *args], capture_output=True, text=True, encoding="utf-8",
+                          errors="replace", env=env(None, FD), input=stdin, cwd=str(home), timeout=60)
+
+
+p39 = {"hook_event_name": "PostToolUseFailure", "session_id": "S-39", "cwd": str(home), "tool_name": "Bash", "tool_use_id": "t39",
+       "tool_input": {"command": f"bash {plug39}/scripts/video-sheet.sh clip.mp4"}, "is_interrupt": False,
+       "error": "Exit code 1\nfile: clip.mp4"}
+obs39("hook", stdin=json.dumps(p39))
+p39["error"] = "Exit code 2\nffmpeg: cannot open '" + str(home) + "/Video/Vacanze 2026/festa finale.MOV': see https://docs.example.com/x and report_Q3.xlsx, console.log and package.json"
+obs39("hook", stdin=json.dumps(p39))
+id39 = next(x["id"] for x in recs("fd") if "Exit code 1" in (x.get("error") or ""))
+obs39("add", "--on", id39, "fontconfig error on ~/Desktop/nonna.jpg and \"my holiday clip.mp4\"")
+d39 = obs39("report", "fd").stdout
+leak39 = [w for w in ("clip", "festa", "finale", "report_Q3", "nonna", "holiday") if w in d39]
+check("OB39 file names from errors and notes go out as <file>.ext (spaces, end of a path, quoted), never the name",
+      not leak39 and "<file>.mp4" in d39 and "<file>.MOV" in d39 and "<file>.xlsx" in d39 and "<file>.jpg" in d39, f"leak={leak39} " + d39[-1200:])
+check("OB39 the plugin's own script names, generic names and URL hosts stay (the maintainer needs them)",
+      "video-sheet.sh" in d39 and "package.json" in d39 and "console.log" in d39 and "docs.example.com" in d39, d39[-1200:])
+check("OB39 the local record keeps what it had (only the text that goes out is generalized)", "clip.mp4" in json.dumps(recs("fd")), "")
+
+# OB40 (27/09): l'invio anonimo non esiste ancora (endpoint vuoto): niente promesse, il codice resta dietro l'endpoint
+readme, tmpl = (REPO / "README.md").read_text(encoding="utf-8"), (REPO / "commands" / "observe.md").read_text(encoding="utf-8")
+cfg.write_text(json.dumps(BASE))
+o40 = opts_of(obs("send").stdout)
+check("OB40 README and the command template do not offer «Send anonymously», they say it is coming; with the default config the options are «Invia dal mio GitHub» and «Non ora»",
+      "«Send anonymously»" not in readme + tmpl and "coming" in readme and "coming" in tmpl and "Send from my GitHub" in tmpl
+      and [o["label"] for o in o40] == ["Invia dal mio GitHub", "Non ora"], json.dumps(o40))
 
 shutil.rmtree(tmp, ignore_errors=True)
 print(f"\n{OKS}/{OKS + len(FAILS)} OK" + (", FAIL: " + ", ".join(FAILS) if FAILS else ""))
