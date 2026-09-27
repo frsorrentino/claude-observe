@@ -417,6 +417,10 @@ def claude_code_version():
     exe = os.environ.get("CLAUDE_CODE_EXECPATH") or ""
     if VERSION_RE.fullmatch(os.path.basename(exe)):
         return os.path.basename(exe)
+    # AI_AGENT=claude-code_2-1-283_harness: su Windows (npm) l'unica traccia, CLAUDE_CODE_EXECPATH li' non c'e' (27/09)
+    m = re.fullmatch(r"claude-code_(\d+(?:-\d+)+)(?:_.*)?", os.environ.get("AI_AGENT") or "")
+    if m:
+        return m.group(1).replace("-", ".")
     try:   # installazione npm (su Windows sempre): <pacchetto>/bin/claude.exe → <pacchetto>/package.json
         pkg = json.load(open(Path(exe).parent.parent / "package.json", encoding="utf-8")) if exe else {}
         if str(pkg.get("name") or "").startswith("@anthropic-ai/claude-code") and VERSION_RE.fullmatch(str(pkg.get("version") or "")):

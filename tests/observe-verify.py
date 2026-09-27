@@ -40,6 +40,7 @@ OB34 py.sh (Windows, 27/09): salta un python3 che esce 9009 (l'alias dello Store
      scelta in cache; senza Python una riga su stderr e uscita 0; l'hook scritto da sync.py registra attraverso py.sh
 OB35 testi fuori da cp1252 (→, emoji, CJK): registrati e leggibili anche con stdio in cp1252, accanto a un record UTF-8
      scritto da Node; nessun open() senza encoding (EncodingWarning); la versione di Claude Code da un'installazione npm
+     e da AI_AGENT (l'unica traccia in un hook su Windows)
 """
 import json
 import os
@@ -863,6 +864,9 @@ npm = tmp / "npm" / "node_modules" / "@anthropic-ai" / "claude-code"
 fail("mcp__chrome-bridge__hover", {"ref": "n9"}, "OB35 npm version", extra={**PERSONAL, "CLAUDE_CODE_EXECPATH": str(npm / "bin" / "claude.exe")})
 c35 = next((x.get("context") or {} for x in recs("chrome-bridge") if "OB35 npm version" in (x.get("error") or "")), {})
 check("OB35 Claude Code version from an npm install (bin/claude.exe → package.json), as on Windows", c35.get("claude_code") == "2.1.283", json.dumps(c35))
+fail("mcp__chrome-bridge__hover", {"ref": "n8"}, "OB35 ai agent version", extra={**PERSONAL, "AI_AGENT": "claude-code_2-1-284_harness"})
+c35b = next((x.get("context") or {} for x in recs("chrome-bridge") if "OB35 ai agent version" in (x.get("error") or "")), {})
+check("OB35 Claude Code version from AI_AGENT (claude-code_2-1-284_harness), the only trace in a Windows hook", c35b.get("claude_code") == "2.1.284", json.dumps(c35b))
 
 shutil.rmtree(tmp, ignore_errors=True)
 print(f"\n{OKS}/{OKS + len(FAILS)} OK" + (", FAIL: " + ", ".join(FAILS) if FAILS else ""))
