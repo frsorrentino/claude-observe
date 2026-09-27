@@ -983,14 +983,17 @@ GENERIC_FILES = {"package.json", "package-lock.json", "settings.json", "settings
                  "claude.md", "readme.md", "node.js", "console.log", "tsconfig.json", "pyproject.toml", "requirements.txt"}
 
 
-def own_files():
-    """I nomi dei file di questa copia e, se e' dentro un plugin (<plugin>/observe/), del plugin: non sono dati dell'utente."""
-    names = {p.name.lower() for p in HERE.iterdir() if p.is_file()} if HERE.is_dir() else set()
+def own_names():
+    """I nomi dei file e delle cartelle di questa copia e, se e' dentro un plugin (<plugin>/observe/), del plugin (la sua
+    cartella compresa): non sono dati dell'utente."""
+    names = {p.name.lower() for p in HERE.iterdir()} if HERE.is_dir() else set()
+    names |= {str(TOOL.get(k) or "").lower() for k in ("name", "plugin")} - {""}   # ~/.claude/plugins/cache/<mkt>/<plugin>/
     if HERE.name == "observe":
+        names.add(HERE.parent.name.lower())
         n = 0
         for dirpath, dirs, files in os.walk(HERE.parent):
             dirs[:] = [d for d in dirs if d not in (".git", "node_modules", "__pycache__")]
-            names |= {f.lower() for f in files}
+            names |= {f.lower() for f in files + dirs}
             n += len(files)
             if n > 5000:
                 break
@@ -1000,7 +1003,7 @@ def own_files():
 def generalize_files(text, keep=None):
     """clip.mp4 → <file>.mp4, anche in fondo a un percorso (~/Video/clip.mp4 → ~/Video/<file>.mp4); gli host degli URL, i
     nomi generici e quelli del plugin restano."""
-    keep = GENERIC_FILES | (own_files() if keep is None else keep)
+    keep = GENERIC_FILES | (own_names() if keep is None else keep)
 
     def sub(m):
         if m.group(0).lower() in keep or text[max(0, m.start() - 3):m.start()] == "://":
@@ -1012,10 +1015,46 @@ def generalize_files(text, keep=None):
     return text
 
 
+# le cartelle sotto la home le sceglie l'utente (27/09: «~\\Videos\\Vacanze 2026\\»): restano solo quelle standard, di
+# sistema e degli strumenti, e quelle del plugin; le altre diventano <dir> (<name> l'ultimo segmento senza estensione)
+STD_DIRS = {"desktop", "documents", "documenti", "downloads", "download", "videos", "video", "pictures", "immagini", "music",
+            "musica", "appdata", "local", "locallow", "roaming", "temp", "tmp", "programs", ".claude", ".config", ".cache",
+            ".local", "state", "share", "bin", "node_modules", "plugins", "cache", "marketplaces", "claude-observe", "npm"}
+# un segmento con spazi: se dopo viene un separatore (cartella) o se finisce con un'estensione nota e poi la fine del nome
+HOME_PATH_RE = re.compile(rf"(?i)~((?:[\\/]+(?:{SEG}+(?: {SEG}+)+(?=[\\/])|{SEG}+(?: {SEG}+)+?\.(?:{FILE_EXTS}){_END}(?=[\"'`»:]|\s*$)|{SEG}+))+)", re.M)
+
+
+def generalize_dirs(text, keep=None):
+    """~/Videos/Vacanze 2026/x.mp4 → ~/Videos/<dir>/x.mp4 (il nome del file lo toglie generalize_files); ~/progetti/acme →
+    ~/<dir>/<name>. Solo i percorsi sotto la home (scrub li ha gia' portati a ~)."""
+    keep = STD_DIRS | (own_names() if keep is None else keep)
+
+    def seg(part, last):
+        core = part.rstrip(".")
+        low = core.lower()
+        if not core or low in keep or core.startswith("<") or VERSION_RE.fullmatch(core) or core in (".", ".."):
+            return part
+        if last and "." in core.lstrip("."):
+            return part   # un file: ci pensa generalize_files (estensioni note); il resto non e' un nome di cartella
+        return ("<name>" if last else "<dir>") + part[len(core):]
+
+    def sub(m):
+        parts = re.split(r"([\\/]+)", m.group(1))
+        idx = [i for i, x in enumerate(parts) if x and not re.fullmatch(r"[\\/]+", x)]
+        return "~" + "".join(seg(x, i == idx[-1]) if i in idx else x for i, x in enumerate(parts))
+    return HOME_PATH_RE.sub(sub, str(text or ""))
+
+
+def generalize(text, keep=None):
+    """Tutto quello che esce: prima le cartelle sotto la home, poi i nomi di file."""
+    keep = own_names() if keep is None else keep
+    return generalize_files(generalize_dirs(text, keep), keep)
+
+
 def existing_issue(repo, recs):
     """Una issue aperta sullo stesso errore: si cerca la chiamata e le parole dell'errore piu' frequente."""
     top = recs[0]
-    words = [w for w in re.findall(r"[A-Za-z][A-Za-z_]{3,}", generalize_files(view(top).get("error")))][:5]   # la ricerca esce anche lei
+    words = [w for w in re.findall(r"[A-Za-z][A-Za-z_]{3,}", generalize(view(top).get("error")))][:5]   # la ricerca esce anche lei
     q = " ".join([str(top.get("call") or "").split()[0]] + words) + " in:title,body"
     try:
         res = subprocess.run(["gh", "issue", "list", "-R", repo, "--state", "open", "--search", q, "--json", "number,title,url",
@@ -1031,8 +1070,8 @@ def draft(tool, recs, target=None, security=False):
     security=True il testo della segnalazione privata (advisory GitHub o indirizzo di SECURITY.md), mai di una issue."""
     vs = [view(r) for r in sorted(recs, key=lambda r: -int(r.get("count") or 0))]
     recs_by_id = {r.get("id"): r for r in recs}
-    keep = own_files()
-    out = lambda x, n: generalize_files(scrub(x, n), keep)  # noqa: E731 — ogni testo che esce
+    keep = own_names()
+    out = lambda x, n: generalize(scrub(x, n), keep)  # noqa: E731 — ogni testo che esce
     rows = []
     for v in vs[:20]:
         c = (recs_by_id.get(v.get("id")) or {}).get("context") or {}

@@ -48,6 +48,8 @@ OB37 `send` senza nome dello strumento (come lo lancia /<plugin>:observe send): 
 OB38 la nota di `add --on ID` entra nella bozza (solo dai record di questo account)
 OB39 i nomi di file degli errori escono come <file>.ext (anche con spazi, in fondo a un percorso, nelle note); restano i
      nomi del plugin stesso, quelli generici e gli host degli URL; il file locale non cambia
+OB41 le cartelle sotto la home scelte dall'utente escono come <dir> (anche con spazi, in stile Windows, nelle note); restano
+     le standard (Videos, AppData\\Local\\Temp, .config, .claude/plugins/cache…) e quelle del plugin (nome, cartelle)
 OB40 onesta' (27/09): l'endpoint anonimo non c'e' ancora; README e comando non promettono «Send anonymously»
 """
 import json
@@ -973,6 +975,23 @@ o40 = opts_of(obs("send").stdout)
 check("OB40 README and the command template do not offer «Send anonymously», they say it is coming; with the default config the options are «Invia dal mio GitHub» and «Non ora»",
       "«Send anonymously»" not in readme + tmpl and "coming" in readme and "coming" in tmpl and "Send from my GitHub" in tmpl
       and [o["label"] for o in o40] == ["Invia dal mio GitHub", "Non ora"], json.dumps(o40))
+
+# OB41 (27/09): «~\\Videos\\Vacanze 2026\\» dice dell'utente quanto il nome del file
+for e41 in (f"Exit code 3\nopen '{home}/Videos/Vacanze 2026/festa.mp4' and {home}/AppData/Local/Temp/acme-cliente/x.tmp",
+            f"Exit code 4\n{home}/.claude/plugins/cache/mk/fd/scripts/video-sheet.sh; {home}/.config/claude-observe/config.json",
+            f"Exit code 5\n{home}/progetti/acme-shop failed; {home}/plugin-fd/scripts/video-sheet.sh"):
+    p39["error"] = e41
+    obs39("hook", stdin=json.dumps(p39))
+id41 = next(x["id"] for x in recs("fd") if "Exit code 3" in (x.get("error") or ""))
+obs39("add", "--on", id41, "also ~\\Documents\\Clienti Rossi\\fattura 12.pdf: locked")
+d41 = obs39("report", "fd").stdout
+leak41 = [w for w in ("Vacanze", "2026/", "acme", "progetti", "Clienti", "Rossi", "fattura", "/mk/") if w in d41]
+check("OB41 user-chosen folders under the home go out as <dir> (with spaces, Windows style, in notes): no name left",
+      not leak41 and "~/Videos/<dir>/<file>.mp4" in d41 and "~/AppData/Local/Temp/<dir>/<file>.tmp" in d41
+      and "~\\Documents\\<dir>\\<file>.pdf" in d41 and "~/<dir>/<name> failed" in d41, f"leak={leak41} " + d41[-1500:])
+check("OB41 standard folders, tool folders and the plugin's own folders and name stay",
+      "~/.claude/plugins/cache/<dir>/fd/scripts/video-sheet.sh" in d41 and "~/.config/claude-observe/config.json" in d41
+      and "~/plugin-fd/scripts/video-sheet.sh" in d41, d41[-1500:])
 
 shutil.rmtree(tmp, ignore_errors=True)
 print(f"\n{OKS}/{OKS + len(FAILS)} OK" + (", FAIL: " + ", ".join(FAILS) if FAILS else ""))

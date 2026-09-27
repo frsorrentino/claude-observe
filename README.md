@@ -11,7 +11,9 @@ repo), one copy per plugin, checked by hash at every release of that plugin.
 - Records go to a **local** file, `${XDG_STATE_HOME:-~/.local/state}/claude-observe/<plugin>.jsonl` (0600). The same
   error seen again is one record with a count.
 - Of the tool parameters only **field names and text lengths** are kept, never values; commands pass a redactor;
-  error texts are scrubbed (home path, emails, URL queries, secrets, typed values).
+  error texts are scrubbed (home path, emails, URL queries, secrets, typed values). In the text that goes out, file
+  names become `<file>.mp4` and the folders under your home that you named become `<dir>` (standard ones such as
+  Videos or AppData stay, and so do the plugin's own).
 - When a known error comes back, the hook hands Claude the recorded workaround, or «fixed in X: update» when the
   installed version is older.
 - **Nothing leaves the computer** unless you say yes: at a natural moment Claude offers to send the collected errors as
