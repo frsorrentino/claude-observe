@@ -41,6 +41,9 @@ OB34 py.sh (Windows, 27/09): salta un python3 che esce 9009 (l'alias dello Store
 OB35 testi fuori da cp1252 (→, emoji, CJK): registrati e leggibili anche con stdio in cp1252, accanto a un record UTF-8
      scritto da Node; nessun open() senza encoding (EncodingWarning); la versione di Claude Code da un'installazione npm
      e da AI_AGENT (l'unica traccia in un hook su Windows)
+OB36 privacy su Windows (invio anonimo): la home in ogni forma (C:\\Users\\x, C:/Users/x, /c/Users/x, /mnt/c/Users/x,
+     \\\\?\\C:\\Users\\x, \\\\ dentro JSON, USERPROFILE fuori da Users, maiuscole) e il nome utente come segmento: ne' nel file
+     ne' nella bozza di report; i testi senza percorsi restano come sono
 """
 import json
 import os
@@ -867,6 +870,41 @@ check("OB35 Claude Code version from an npm install (bin/claude.exe → package.
 fail("mcp__chrome-bridge__hover", {"ref": "n8"}, "OB35 ai agent version", extra={**PERSONAL, "AI_AGENT": "claude-code_2-1-284_harness"})
 c35b = next((x.get("context") or {} for x in recs("chrome-bridge") if "OB35 ai agent version" in (x.get("error") or "")), {})
 check("OB35 Claude Code version from AI_AGENT (claude-code_2-1-284_harness), the only trace in a Windows hook", c35b.get("claude_code") == "2.1.284", json.dumps(c35b))
+
+# OB36 (27/09): prima dell'invio anonimo di issue pubbliche dal laptop Windows. Traceback e percorsi come li scrivono
+# Python su Windows, Git Bash, WSL, Node dentro JSON; USERPROFILE fuori da C:\Users per il caso %USERPROFILE%
+WT = TOOLS / "wintool.json"
+WT.write_text(json.dumps({"name": "wintool", "repo": "me/wintool", "match": {"mcp": ["mcp__wintool__"]}}))
+WIN = {**PERSONAL, "USERPROFILE": "D:\\Profili\\Mario Rossi", "USERNAME": "MRossi"}
+win_errors = [
+    'Traceback (most recent call last):\n  File "C:\\Users\\MRossi\\.claude\\plugins\\cache\\cb\\observe\\observe.py", line 540, in __exit__\n'
+    '    with open(tmp, "w") as f:\nPermissionError: [WinError 5] Accesso negato: \'C:\\\\Users\\\\MRossi\\\\.local\\\\state\\\\x.tmp\'',
+    "bash: /c/users/mrossi/AppData/Roaming/npm/cm.sh: No such file or directory",
+    "ENOENT: no such file or directory, open 'C:/Users/MRossi/Desktop/prova.json'",
+    '{"path":"C:\\\\Users\\\\MRossi\\\\AppData\\\\Local\\\\Temp\\\\shot.png","code":"EPERM"}',
+    "cannot access /mnt/c/Users/MRossi/Downloads/a.pdf and \\\\?\\C:\\USERS\\MROSSI\\AppData\\Local\\x.lock",
+    "profile missing: D:\\Profili\\Mario Rossi\\NTUSER.DAT, also D:/profili/mario rossi/x and C:\\Users\\Mario Rossi\\y",
+    "backup failed on \\\\NAS\\backup\\mrossi\\2026 and Z:\\MRossi",
+]
+for i, e36 in enumerate(win_errors):
+    fail(f"mcp__wintool__op{i}", {"path": "x"}, e36, extra=WIN, tool=WT)
+fail("mcp__wintool__plain", {}, "No tab with id: 1. 3 users online", extra=WIN, tool=WT)
+body36 = raw_box()
+rep36 = obs("report", "wintool", extra=WIN, tool=WT)
+leak = [w for w in ("mrossi", "mario", "rossi") if w in (body36 + rep36.stdout).lower()]
+check("OB36 Windows home in every form and the user name as a path segment: neither in the file nor in the report draft",
+      rep36.returncode == 0 and "wintool" in rep36.stdout and not leak and rep36.stdout.count("~") >= 6, f"leak={leak} " + rep36.stdout[-1500:])
+check("OB36 a text without paths is left as it is", any(x.get("error") == "No tab with id: 1. 3 users online" for x in recs("wintool")),
+      json.dumps([x.get("error") for x in recs("wintool")])[:600])
+# un record scritto prima di questa versione (chiamata e errore col nome): la bozza lo ripulisce all'uscita
+old36 = [{"v": 1, "id": "wintool-old00001", "tool": "wintool", "source": "hook-bash", "kind": "error", "call": "bash /c/Users/MRossi/x.sh",
+          "error": "C:\\Users\\MRossi\\x.sh: exit 2", "count": 5, "first_seen": time.time(), "last_seen": time.time(), "examples": [],
+          "status": "new", "account": ".claude"}]
+with open(box / "wintool.jsonl", "a", encoding="utf-8") as f:
+    f.write("".join(json.dumps(x) + "\n" for x in old36))
+rep36b = obs("report", "wintool", extra=WIN, tool=WT)
+check("OB36 records written before this version: call and error scrubbed again in the draft, title included",
+      "old00001" not in rep36b.stdout and "x.sh" in rep36b.stdout and "mrossi" not in rep36b.stdout.lower(), rep36b.stdout[:800])
 
 shutil.rmtree(tmp, ignore_errors=True)
 print(f"\n{OKS}/{OKS + len(FAILS)} OK" + (", FAIL: " + ", ".join(FAILS) if FAILS else ""))
