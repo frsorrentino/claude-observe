@@ -74,5 +74,7 @@ Not live yet: the service does not exist, `observe.endpoint` is empty by default
 `report --send HASH --anonymous` (the «Send anonymously» button, once the endpoint exists) does one `POST` to
 `observe.endpoint` (config; empty = the option is not offered) with `Content-Type: application/json` and exactly these fields: `plugin`, `version` (the
 plugin's, or null), `security` (bool), `severity` (`high` or null), `title` and `body` — the anonymized draft, nothing
-else. The service answers JSON with `url` (the issue it opened); the records are marked `reported` with it. `report
---later` («Not now») silences both offers for `propose_every_days`.
+else. The service answers JSON with `url` (the issue it opened); the records are marked `reported` with it. A refusal
+(`{"error": …}` with 4xx or 5xx) is shown to the user with its reason and not retried; a network or TLS failure is
+retried once after 2 s. In both cases nothing was sent and the records stay unsent. The service is `server/report.php`,
+its privacy note PRIVACY.md. `report --later` («Not now») silences both offers for `propose_every_days`.

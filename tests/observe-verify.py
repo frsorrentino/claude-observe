@@ -51,6 +51,8 @@ OB39 i nomi di file degli errori escono come <file>.ext (anche con spazi, in fon
 OB41 le cartelle sotto la home scelte dall'utente escono come <dir> (anche con spazi, in stile Windows, nelle note); restano
      le standard (Videos, AppData\\Local\\Temp, .config, .claude/plugins/cache…) e quelle del plugin (nome, cartelle)
 OB40 onesta' (27/09): l'endpoint anonimo non c'e' ancora; README e comando non promettono «Send anonymously»
+OB42 invio anonimo: la descrizione dell'opzione porta alla nota privacy; il rifiuto del servizio arriva col suo motivo;
+     un guasto di rete o di TLS si riprova una volta e poi si dice chiaro; mai inviato, le osservazioni restano
 """
 import json
 import os
@@ -713,6 +715,54 @@ line29, _ = stop_line(home / "ws" / "clienti" / "acme-shop")
 p29 = start(home / "ws" / "clienti" / "acme-shop", tool=CB)
 check("OB29 «Non ora» (report --later) → the offer is silent for propose_every_days: no Stop line, no SessionStart offer", l29.returncode == 0 and "torna fra 7 giorni" in l29.stdout and line29 == "" and "DA INVIARE" not in p29, l29.stdout + line29 + p29)
 ep_srv.shutdown()
+
+# OB42 (27/09, il servizio anonimo): il rifiuto del servizio (429, 422…) arriva all'utente con il suo motivo; un guasto di
+# rete o di TLS (il CDN di SiteGround) si riprova una volta e poi si dice chiaro; mai inviato, le osservazioni restano
+REJ = {"hits": 0}
+
+
+class Rej(BaseHTTPRequestHandler):
+    def log_message(self, *a):
+        pass
+
+    def do_POST(self):
+        REJ["hits"] += 1
+        self.rfile.read(int(self.headers.get("Content-Length") or 0))
+        out = json.dumps({"error": "too many reports from this address: retry in an hour, or tomorrow"}).encode()
+        self.send_response(429); self.send_header("Content-Type", "application/json"); self.send_header("Content-Length", str(len(out))); self.end_headers(); self.wfile.write(out)
+
+
+class Drop(BaseHTTPRequestHandler):
+    def log_message(self, *a):
+        pass
+
+    def do_POST(self):
+        REJ["hits"] += 1
+        self.close_connection = True
+        self.connection.close()   # nessuna risposta: come un TLS rotto a meta'
+
+
+rej_srv, drop_srv = ThreadingHTTPServer(("127.0.0.1", 0), Rej), ThreadingHTTPServer(("127.0.0.1", 0), Drop)
+for srv in (rej_srv, drop_srv):
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+obs("add", "chrome-bridge", "nota per il rifiuto")
+cfg.write_text(json.dumps({**BASE, "endpoint": f"http://127.0.0.1:{rej_srv.server_port}/r"}))
+d42 = obs("report", "chrome-bridge").stdout
+o42 = opts_of(d42)
+r42 = obs("report", "chrome-bridge", "--send", sent_hash(d42), "--anonymous")
+pending42 = [x for x in recs("chrome-bridge") if "nota per il rifiuto" in (x.get("call") or "") and x.get("status") != "reported"]
+check("OB42 the anonymous option's description links the privacy note (PRIVACY.md)", any(o["label"] == "Invia in forma anonima" and "PRIVACY.md" in o["description"] for o in o42), json.dumps(o42))
+check("OB42 the service refuses (429) → exit 4, the user reads the service's reason and «HTTP 429», one attempt only, the observations stay unsent",
+      r42.returncode == 4 and "too many reports from this address" in r42.stderr and "HTTP 429" in r42.stderr and REJ["hits"] == 1 and pending42, r42.stderr + str(REJ))
+REJ["hits"] = 0
+cfg.write_text(json.dumps({**BASE, "endpoint": f"http://127.0.0.1:{drop_srv.server_port}/r"}))
+d42b = obs("report", "chrome-bridge").stdout
+r42b = obs("report", "chrome-bridge", "--send", sent_hash(d42b), "--anonymous")
+pending42b = [x for x in recs("chrome-bridge") if "nota per il rifiuto" in (x.get("call") or "") and x.get("status") != "reported"]
+check("OB42 the connection breaks without an answer (a TLS failure of the CDN) → a second attempt, then exit 4 with «non raggiungibile» and «Invia dal mio GitHub»; the observations stay unsent",
+      r42b.returncode == 4 and REJ["hits"] == 2 and "non raggiungibile" in r42b.stderr and "Invia dal mio GitHub" in r42b.stderr and pending42b, r42b.stderr + str(REJ))
+rej_srv.shutdown(); drop_srv.shutdown()
+cfg.write_text(json.dumps(BASE))
 
 # OB28 (25/09): sync.py genera commands/observe.md (uniforme) e la voce Stop; un comando scritto a mano resta
 sync28 = subprocess.run([sys.executable, str(SRC1 / "sync.py"), str(plug2)], capture_output=True, text=True)
