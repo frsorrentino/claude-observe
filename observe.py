@@ -942,6 +942,12 @@ def anonymizer():
     p = O.get("anonymizer") or ""
     if p:
         return expand(p) if os.path.isfile(expand(p)) else ""
+    # 06/10 (dalla revisione della directory): prima il file del plugin stesso, accanto alla copia di observe — la
+    # versione controllata dal portale, non un'altra installata; il glob nelle cache di fable-director resta solo
+    # come ultima scelta, per i plugin che non hanno un anonimizzatore loro
+    own = HERE.parent / "scripts" / "anonymizer.py"
+    if own.is_file():
+        return str(own)
     found = sorted(glob.glob(os.path.expanduser("~/.claude*/plugins/cache/*/fable-director/*/scripts/anonymizer.py")), key=os.path.getmtime)
     return found[-1] if found else ""
 

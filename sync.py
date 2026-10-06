@@ -95,10 +95,14 @@ def main(argv):
     # allowed-tools: il solo comando che il file lancia (anche le opzioni di send sono «<cmd> report …»), mai Bash nudo:
     # il portale della directory lo mette in hold come «Allowed tools broad» (26/09). Il lanciatore: bash seguito dal
     # percorso di py.sh, qualunque sia la radice del plugin (anche C:\… su Windows)
+    # 06/10 (dalla directory, provato da chrome-bridge con `claude -p` in dontAsk): il portale trattiene anche un percorso
+    # relativo o un jolly nel percorso. Per il lanciatore la forma esatta, con le virgolette e la radice del plugin
+    # (senza virgolette il comando viene negato); per un comando del plugin (un nome nel PATH) nessun allowed-tools:
+    # non lo si puo' legare a un percorso, e il comando chiede il permesso come ogni altro Bash
     cmd = tool.get("command") or CMD
-    allowed = "Bash(bash *observe/py.sh*)" if cmd == CMD else f"Bash({cmd} *)"
-    text = ((SRC / "commands" / "observe.md").read_text(encoding="utf-8").replace("{name}", tool["name"]).replace("{cmd}", cmd)
-            .replace("{allowed}", allowed))
+    allowed = f"Bash({CMD}:*)" if cmd == CMD else None
+    text = (SRC / "commands" / "observe.md").read_text(encoding="utf-8").replace("{name}", tool["name"]).replace("{cmd}", cmd)
+    text = text.replace("{allowed}", allowed) if allowed else text.replace("allowed-tools: {allowed}\n", "")
     if not cmd_f.exists() or MARK in cmd_f.read_text(encoding="utf-8"):
         cmd_f.parent.mkdir(exist_ok=True)
         cmd_f.write_text(text, encoding="utf-8")

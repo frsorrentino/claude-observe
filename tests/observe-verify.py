@@ -801,9 +801,22 @@ plug32 = tmp / "plugin-cmd"
 (plug32 / "observe" / "tool.json").write_text(CM.read_text())
 sync32 = subprocess.run([sys.executable, str(SRC1 / "sync.py"), str(plug32)], capture_output=True, text=True)
 cmd32b = (plug32 / "commands" / "observe.md").read_text() if sync32.returncode == 0 else ""
-check("OB32 generated observe.md: allowed-tools Bash(bash *observe/py.sh*) for the default command (the launcher), Bash(<command> *) for a plugin command; never bare Bash",
-      "\nallowed-tools: Bash(bash *observe/py.sh*)\n" in cmd32 and 'bash "${CLAUDE_PLUGIN_ROOT}/observe/py.sh" "${CLAUDE_PLUGIN_ROOT}/observe/observe.py" ${ARGUMENTS}' in cmd32 and "\nallowed-tools: Bash(claude-master observe *)\n" in cmd32b
+check("OB32 generated observe.md: allowed-tools = the launcher's exact command, quoted, with the plugin root (the portal holds relative paths and wildcards in the path, 06/10); a plugin command (a name in the PATH) gets no allowed-tools; never bare Bash",
+      '\nallowed-tools: Bash(bash "${CLAUDE_PLUGIN_ROOT}/observe/py.sh" "${CLAUDE_PLUGIN_ROOT}/observe/observe.py":*)\n' in cmd32
+      and 'bash "${CLAUDE_PLUGIN_ROOT}/observe/py.sh" "${CLAUDE_PLUGIN_ROOT}/observe/observe.py" ${ARGUMENTS}' in cmd32
+      and "allowed-tools" not in cmd32b and cmd32b.startswith("---\ndescription:") and "*observe/py.sh*" not in cmd32 + cmd32b
       and "\nallowed-tools: Bash\n" not in cmd32 + cmd32b, cmd32[:300] + cmd32b[:300] + sync32.stderr)
+
+# OB34 (06/10, dalla revisione della directory): l'anonimizzatore del plugin stesso, accanto alla copia di observe,
+# prima di quello di un'altra versione installata nelle cache
+plug34 = tmp / "plugin-anon"
+(plug34 / "observe").mkdir(parents=True); (plug34 / "scripts").mkdir()
+shutil.copy(SRC1 / "observe.py", plug34 / "observe" / "observe.py")
+(plug34 / "scripts" / "anonymizer.py").write_text("# test\n")
+_r34 = subprocess.run([sys.executable, "-c", "import importlib.util,sys;s=importlib.util.spec_from_file_location('o',sys.argv[1]);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);print(m.anonymizer())",
+                       str(plug34 / "observe" / "observe.py")], capture_output=True, text=True, env=dict(os.environ, HOME=str(tmp / "home34")))
+check("OB34 anonymizer(): the plugin's own scripts/anonymizer.py (next to its observe copy) first, never another installed version when it has one",
+      _r34.stdout.strip() == str((plug34 / "scripts" / "anonymizer.py").resolve()), _r34.stdout + _r34.stderr[-300:])
 
 # OB33: per ogni server MCP il matcher di PostToolUseFailure copre il nome nudo e quello plugin-scoped (col nome del
 # plugin in .claude-plugin/plugin.json, se c'e')
