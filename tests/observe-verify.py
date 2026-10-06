@@ -1046,6 +1046,9 @@ check("OB40 with the default config chrome-bridge offers «Invia dal mio GitHub�
       and "«Send anonymously»" in readme and "«Send anonymously»" in tmpl and "coming" not in readme + tmpl, json.dumps(o40))
 check("OB40 with the default config a plugin outside the service's allowlist (fd) is never offered «Invia in forma anonima»",
       o40fd and "Invia in forma anonima" not in [o["label"] for o in o40fd], json.dumps(o40fd))
+srv40 = set(re.findall(r"^\s*'([\w-]+)' => 'frsorrentino/", (REPO / "server" / "report.php").read_text(encoding="utf-8"), re.M))
+anon40 = set(re.findall(r'"([\w-]+)"', re.search(r"^ANON_TOOLS = \{(.*)\}$", OBS.read_text(encoding="utf-8"), re.M).group(1)))
+check("OB40 the client's ANON_TOOLS and the server's OBSERVE_REPOS name the same plugins", srv40 and srv40 == anon40, f"{sorted(srv40)} {sorted(anon40)}")
 
 # OB41 (27/09): «~\\Videos\\Vacanze 2026\\» dice dell'utente quanto il nome del file
 for e41 in (f"Exit code 3\nopen '{home}/Videos/Vacanze 2026/festa.mp4' and {home}/AppData/Local/Temp/acme-cliente/x.tmp",

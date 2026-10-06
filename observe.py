@@ -72,7 +72,7 @@ DEFAULTS = {"enabled": True, "dir": "", "max_records": 2000, "max_days": 90, "an
 PRIVACY = "https://github.com/frsorrentino/claude-observe/blob/main/PRIVACY.md"   # la nota dell'invio anonimo
 # i plugin che il nostro servizio accetta (OBSERVE_REPOS di server/report.php): una copia in un altro plugin non
 # offre un servizio che la rifiuterebbe. Un endpoint diverso, scelto dall'utente, vale per tutti
-ANON_TOOLS = {"fable-director", "claude-master", "chrome-bridge", "claude-observe", "claude-master-watch"}
+ANON_TOOLS = {"fable-director", "claude-master", "chrome-bridge", "claude-observe", "claude-master-watch", "team-supervisor"}
 MSG = {
  "it": {
   "observe.summary": "OSSERVAZIONI {tool}: {new} nuove, {again} ricorrenti — `{cmd} list {tool}` (triage: `observe mark ID D|L|S|done`)",
