@@ -22,9 +22,9 @@ repo), one copy per plugin, checked by hash at every release of that plugin.
   offered again. You see the offer too: at the end of a turn, one line on screen such as «2 observations on
   chrome-bridge ready to send: /chrome-bridge:observe send», once, then silence for seven days. The question comes as
   buttons: «Send from my GitHub» (an issue in your name, through `gh` or a prefilled GitHub link you open; you can
-  follow it) and «Not now» (it comes back in seven days). Anonymous sending, without your name, is coming but does not
-  exist yet: today every report goes out from your own GitHub account. Security observations go only through the
-  private paths.
+  follow it), «Send anonymously» (our service opens the issue without your name and keeps no IP: see
+  [PRIVACY.md](PRIVACY.md); offered only for the plugins the service accepts) and «Not now» (it comes back in seven
+  days). Security observations go only through the private paths.
 - **Security observations take a private path.** Claude marks a note `--security` when it saw a read or write outside
   the perimeter, a secret exposed, code run that was not asked for, or data leaving the computer (it decides from what
   it saw; it never asks you to classify), and `--severity high` when a defect of the plugin blocked the work (data

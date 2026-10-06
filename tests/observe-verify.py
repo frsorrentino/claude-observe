@@ -50,7 +50,8 @@ OB39 i nomi di file degli errori escono come <file>.ext (anche con spazi, in fon
      nomi del plugin stesso, quelli generici e gli host degli URL; il file locale non cambia
 OB41 le cartelle sotto la home scelte dall'utente escono come <dir> (anche con spazi, in stile Windows, nelle note); restano
      le standard (Videos, AppData\\Local\\Temp, .config, .claude/plugins/cache…) e quelle del plugin (nome, cartelle)
-OB40 onesta' (27/09): l'endpoint anonimo non c'e' ancora; README e comando non promettono «Send anonymously»
+OB40 il servizio anonimo acceso (06/10): l'endpoint di default lo offre solo ai plugin che il servizio accetta, mai a
+     un altro plugin; README e comando lo descrivono, senza «coming»
 OB42 invio anonimo: la descrizione dell'opzione porta alla nota privacy; il rifiuto del servizio arriva col suo motivo;
      un guasto di rete o di TLS si riprova una volta e poi si dice chiaro; mai inviato, le osservazioni restano
 """
@@ -94,7 +95,8 @@ for d in (".claude", ".claude-pixel", "ws/chrome-bridge", "ws/clienti/acme-shop"
 state = tmp / "state"
 box = state / "claude-observe"
 cfg = tmp / "config.json"
-BASE = {"tools": {"chrome-bridge": {"maintainer_dir": str(home / "ws" / "chrome-bridge")}}}
+# endpoint vuoto: nessun test raggiunge mai il servizio vero; OB40 toglie la chiave per provare il default
+BASE = {"tools": {"chrome-bridge": {"maintainer_dir": str(home / "ws" / "chrome-bridge")}}, "endpoint": ""}
 cfg.write_text(json.dumps(BASE))
 TOOLS = tmp / "tools"
 TOOLS.mkdir()
@@ -1031,13 +1033,19 @@ check("OB39 the plugin's own script names, generic names and URL hosts stay (the
       "video-sheet.sh" in d39 and "package.json" in d39 and "console.log" in d39 and "docs.example.com" in d39, d39[-1200:])
 check("OB39 the local record keeps what it had (only the text that goes out is generalized)", "clip.mp4" in json.dumps(recs("fd")), "")
 
-# OB40 (27/09): l'invio anonimo non esiste ancora (endpoint vuoto): niente promesse, il codice resta dietro l'endpoint
+# OB40 (06/10): il servizio e' acceso; il default (nessuna chiave endpoint nella config) lo offre ai plugin dell'allowlist
+# del server e a nessun altro. Solo le opzioni: nessun invio, quindi nessuna richiesta al servizio vero
 readme, tmpl = (REPO / "README.md").read_text(encoding="utf-8"), (REPO / "commands" / "observe.md").read_text(encoding="utf-8")
-cfg.write_text(json.dumps(BASE))
+cfg.write_text(json.dumps({k: v for k, v in BASE.items() if k != "endpoint"}))
 o40 = opts_of(obs("send").stdout)
-check("OB40 README and the command template do not offer «Send anonymously», they say it is coming; with the default config the options are «Invia dal mio GitHub» and «Non ora»",
-      "«Send anonymously»" not in readme + tmpl and "coming" in readme and "coming" in tmpl and "Send from my GitHub" in tmpl
-      and [o["label"] for o in o40] == ["Invia dal mio GitHub", "Non ora"], json.dumps(o40))
+obs("add", "fd", "nota per OB40", tool=FD)
+o40fd = opts_of(obs("report", "fd", tool=FD).stdout)
+cfg.write_text(json.dumps(BASE))
+check("OB40 with the default config chrome-bridge offers «Invia dal mio GitHub», «Invia in forma anonima» (the www endpoint) and «Non ora»; README and the command template describe «Send anonymously» and no longer say it is coming",
+      [o["label"] for o in o40] == ["Invia dal mio GitHub", "Invia in forma anonima", "Non ora"]
+      and "«Send anonymously»" in readme and "«Send anonymously»" in tmpl and "coming" not in readme + tmpl, json.dumps(o40))
+check("OB40 with the default config a plugin outside the service's allowlist (fd) is never offered «Invia in forma anonima»",
+      o40fd and "Invia in forma anonima" not in [o["label"] for o in o40fd], json.dumps(o40fd))
 
 # OB41 (27/09): «~\\Videos\\Vacanze 2026\\» dice dell'utente quanto il nome del file
 for e41 in (f"Exit code 3\nopen '{home}/Videos/Vacanze 2026/festa.mp4' and {home}/AppData/Local/Temp/acme-cliente/x.tmp",

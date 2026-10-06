@@ -8,7 +8,7 @@ GitHub under your name, and this service is not involved.
 
 ## What leaves your computer
 
-One HTTPS request to `https://francescosorrentino.com/api/observe/report.php`, sent only after you choose «Send
+One HTTPS request to `https://www.francescosorrentino.com/api/observe/report.php`, sent only after you choose «Send
 anonymously». The request carries:
 
 - the plugin's name and version;
