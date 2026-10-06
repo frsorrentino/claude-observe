@@ -93,8 +93,9 @@ session, only after the maintainer's ok, because each one writes outside this re
   (pixelfarm) never offers a service that would refuse it. Update the README and the command template, which today
   say «coming», and update test OB40. Then publish PRIVACY.md and the release, with the maintainer's final ok.
 
-**Adding a plugin** (07/10: `team-supervisor`, claude-master's new name; keep the old name until it is gone
-everywhere). Add it to `OBSERVE_REPOS` and to `ANON_TOOLS` in `observe.py` (OB40 checks they match). Once the
+**Adding a plugin** (07/10: `team-supervisor` and `team-supervisor-app`, the new names of claude-master and
+claude-master-watch; keep the old names until they are gone everywhere). A renamed repository keeps its id, so it
+stays in the installation with its labels and private reporting: one test publication on the new name is enough. Add it to `OBSERVE_REPOS` and to `ANON_TOOLS` in `observe.py` (OB40 checks they match). Once the
 repository exists, add it to the App's installation, then run steps a and b on it, deploy as in step d, and run step f.
 
 To revoke the service: delete the App, or uninstall it from a repository. The key on the server then stops working.

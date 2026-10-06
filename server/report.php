@@ -24,6 +24,7 @@ const OBSERVE_REPOS = [   // plugin → repository: the only destinations; anyth
     'claude-observe' => 'frsorrentino/claude-observe',
     'claude-master-watch' => 'frsorrentino/claude-master-watch',
     'team-supervisor' => 'frsorrentino/team-supervisor',   // claude-master's new name (07/10); both until the old one is gone
+    'team-supervisor-app' => 'frsorrentino/team-supervisor-app',   // claude-master-watch's new name (07/10), same
 ];
 const OBSERVE_FIELDS = ['plugin', 'version', 'security', 'severity', 'title', 'body'];
 const OBSERVE_MAX_BYTES = 65536;   // the draft is at most 20 rows of ~1.5 KB
