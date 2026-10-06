@@ -86,8 +86,8 @@ session, only after the maintainer's ok, because each one writes outside this re
   report and not as an issue. The `segnalazioni.py` cron must announce the issues on Telegram. Close the test issues
   afterwards.
   *06/10, from Linux: five issues and one private report (GHSA on claude-observe), all as expected and all
-  closed. Still open: `segnalazioni.py` skips authors ending in `[bot]`, so it never announced them; the Windows
-  test was skipped because no `wincompat` session was running.*
+  closed. `segnalazioni.py` skipped authors ending in `[bot]`; with `claude-observe-reports[bot]` let through, the cron
+  of 23:10 announced all five. Still open: the Windows test, set for 07/10 with a `wincompat` session.*
 - [x] h. **Turn it on in the client** (a separate commit, only after g). Put the URL as the default of
   `observe.endpoint`. Offer the option only for the plugins of the allowlist, so that a copy in a plugin outside it
   (pixelfarm) never offers a service that would refuse it. Update the README and the command template, which today
