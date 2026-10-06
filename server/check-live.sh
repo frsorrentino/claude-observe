@@ -4,7 +4,7 @@
 # secret or the state would sit by mistake are not served (403/404: on SiteGround Nginx serves static files without
 # Apache, so an .htaccess does not protect them). Costs one POST of the per-IP limit. Exit 1 at the first failure.
 set -uo pipefail
-URL="${1:-https://francescosorrentino.com/api/observe/report.php}"
+URL="${1:-https://www.francescosorrentino.com/api/observe/report.php}"
 SITE="$(printf '%s' "$URL" | sed -E 's#^(https?://[^/]+).*#\1#')"
 DIR="$(dirname "$URL")"
 fails=0
@@ -24,7 +24,7 @@ code=${out##*$'\n'}
 day=$(date -u +%Y%m%d)
 for p in "$DIR/config.php" "$DIR/app.pem" "$DIR/state/" "$DIR/.lock" "$DIR/rate-$day.json" "$DIR/state/rate-$day.json" \
          "$SITE/private/observe/config.php" "$SITE/private/observe/app.pem" "$SITE/private/observe/state/rate-$day.json"; do
-  code=$(curl -s -o /dev/null -m 20 -w '%{http_code}' "$p")
+  code=$(curl -sL -o /dev/null -m 20 -w '%{http_code}' "$p")   # -L: the site's own redirects (trailing slash, .php) must still end in 403/404
   case "$code" in 403|404) ok "$p → $code" ;; *) ko "$p → $code (must be 403 or 404)" ;; esac
 done
 [ $fails -eq 0 ] && echo "check-live: all ok" || echo "check-live: $fails failure(s)"

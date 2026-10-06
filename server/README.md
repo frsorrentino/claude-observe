@@ -5,8 +5,9 @@ publishes it with a GitHub App: a public issue labelled `from-observe` and `anon
 comment on the open anonymous issue with the same title. A security report becomes a private vulnerability report,
 never an issue. What it keeps and what it does not: [PRIVACY.md](../PRIVACY.md).
 
-It runs on francescosorrentino.com (SiteGround, PHP 8.2 with curl and openssl) at
-`https://francescosorrentino.com/api/observe/report.php`. It is one file with no dependencies.
+It runs on www.francescosorrentino.com (SiteGround, PHP 8.2 with curl and openssl) at
+`https://www.francescosorrentino.com/api/observe/report.php`. It is one file with no dependencies. Without `www` the site
+answers 301, and a redirected POST becomes a GET: clients must use the `www` URL.
 
 What it checks, in this order:
 
@@ -28,7 +29,7 @@ session, only after the maintainer's ok, because each one writes outside this re
 
 **The maintainer**
 
-- [ ] 1. **Create the GitHub App.** Open https://github.com/settings/apps/new and fill in:
+- [x] 1. **Create the GitHub App.** Open https://github.com/settings/apps/new and fill in:
   - name: `claude-observe-reports`. Issues will show `claude-observe-reports[bot]` as their author.
   - Homepage URL: `https://github.com/frsorrentino/claude-observe`;
   - Webhook: untick «Active»;
@@ -36,23 +37,23 @@ session, only after the maintainer's ok, because each one writes outside this re
   - «Only on this account».
 
   Then «Create GitHub App». Note the **App ID**. «Generate a private key» downloads a `.pem` file.
-- [ ] 2. **Install the App.** On the App's page, «Install App» → `frsorrentino` → «Only select repositories», and
+- [x] 2. **Install the App.** On the App's page, «Install App» → `frsorrentino` → «Only select repositories», and
   pick the five repositories of `OBSERVE_REPOS`: fable-director, claude-master, chrome-bridge, claude-observe and
   claude-master-watch.
-- [ ] 3. **Hand over** the App ID and the local path of the `.pem`. Keep the `.pem` out of every repository.
-- [ ] 4. **Optional: the permission for security reports.** GitHub does not document which permission an App needs to
+- [x] 3. **Hand over** the App ID and the local path of the `.pem`. Keep the `.pem` out of every repository.
+- [x] 4. **Optional: the permission for security reports.** GitHub does not document which permission an App needs to
   file a private vulnerability report. If step g gets 403 on it, add «Repository security advisories: Read and
   write» to the App and approve the change on the installation. Adding it now saves that round.
 
 **The session, after the ok**
 
-- [ ] a. **Private vulnerability reporting** on the repositories that do not have it yet. On 27/09 these were
+- [x] a. **Private vulnerability reporting** on the repositories that do not have it yet. On 27/09 these were
   claude-observe and claude-master-watch: `gh api -X PUT repos/frsorrentino/<repo>/private-vulnerability-reporting`.
   Check all five with `gh api repos/frsorrentino/<repo>/private-vulnerability-reporting --jq .enabled`.
-- [ ] b. **The labels** on the five repositories:
+- [x] b. **The labels** on the five repositories:
   `gh label create from-observe --color 0e8a16 -d "Sent by claude-observe" -R frsorrentino/<repo>` and
   `gh label create anonymous --color c5def5 -d "Sent without the reporter's account" -R frsorrentino/<repo>`.
-- [ ] c. **The secrets on the server**, outside `public_html`. The ssh alias of the site's account is `ads-api`, and its
+- [x] c. **The secrets on the server**, outside `public_html`. The ssh alias of the site's account is `ads-api`, and its
   home is `/home/<user>`.
 
   ```sh
@@ -69,20 +70,24 @@ session, only after the maintainer's ok, because each one writes outside this re
 
   The service reads its configuration from `$OBSERVE_CONFIG` or `~/private/observe/config.php`, where `~` is the
   account's home (read with posix when PHP-FPM has no `HOME`).
-- [ ] d. **Deploy.** Copy `server/report.php` to the site repository as `api/observe/report.php`. Commit that file only:
+- [x] d. **Deploy.** Copy `server/report.php` to the site repository as `api/observe/report.php`. Commit that file only:
   the site repository may hold other people's work in progress. The push starts the production deploy (GitHub Actions
   → rsync).
 - [ ] e. **The purge cron.** The maintainer adds it in Site Tools → Devs → Cron Jobs, once a day after midnight UTC:
   `5 0 * * * php /home/<user>/www/francescosorrentino.com/public_html/api/observe/report.php purge`.
   It deletes the previous day's counts and their key even when no request comes.
-- [ ] f. **Check from outside:** `bash server/check-live.sh` must end with «all ok». If curl fails on TLS while the
+  *06/10: waiting for the maintainer (Site Tools needs their login). The command, run by hand over ssh, exits 0.*
+- [x] f. **Check from outside:** `bash server/check-live.sh` must end with «all ok». If curl fails on TLS while the
   origin is healthy, it is the SiteGround CDN (see the site's notes).
-- [ ] g. **End to end.** Set `{"endpoint": "https://francescosorrentino.com/api/observe/report.php"}` in
+- [ ] g. **End to end.** Set `{"endpoint": "https://www.francescosorrentino.com/api/observe/report.php"}` in
   `~/.config/claude-observe/config.json`. Then send one report per plugin with «Send anonymously»: from Linux, and
   from the `wincompat` session on Windows. Include one `--security` report. Each public issue must arrive with the
   labels `from-observe` and `anonymous` and the «Sent anonymously» line. The security one must arrive as a private
   report and not as an issue. The `segnalazioni.py` cron must announce the issues on Telegram. Close the test issues
   afterwards.
+  *06/10, from Linux: five issues and one private report (GHSA on claude-observe), all as expected and all
+  closed. Still open: `segnalazioni.py` skips authors ending in `[bot]`, so it never announced them; the Windows
+  test was skipped because no `wincompat` session was running.*
 - [ ] h. **Turn it on in the client** (a separate commit, only after g). Put the URL as the default of
   `observe.endpoint`. Offer the option only for the plugins of the allowlist, so that a copy in a plugin outside it
   (pixelfarm) never offers a service that would refuse it. Update the README and the command template, which today
