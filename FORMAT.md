@@ -72,7 +72,7 @@ text. Sent records get `status` `reported` and `reported` = the advisory URL or 
 
 `observe.endpoint` defaults to our service, `https://www.francescosorrentino.com/api/observe/report.php`; with that
 default the option is offered only for the plugins the service accepts (fable-director, claude-master, chrome-bridge,
-claude-observe, claude-master-watch, team-supervisor, team-supervisor-app). Another endpoint set by the user applies to every plugin; empty = the option is
+claude-observe, claude-master-watch, team-supervisor, team-supervisor-app, supervisor, supervisor-app). Another endpoint set by the user applies to every plugin; empty = the option is
 not offered. `report --send HASH --anonymous` (the «Send anonymously» button) does one `POST` to `observe.endpoint` with `Content-Type: application/json` and exactly these fields: `plugin`, `version` (the
 plugin's, or null), `security` (bool), `severity` (`high` or null), `title` and `body` — the anonymized draft, nothing
 else. The service answers JSON with `url` (the issue it opened); the records are marked `reported` with it. A refusal

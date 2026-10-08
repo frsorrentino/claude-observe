@@ -94,7 +94,8 @@ session, only after the maintainer's ok, because each one writes outside this re
   say «coming», and update test OB40. Then publish PRIVACY.md and the release, with the maintainer's final ok.
 
 **Adding a plugin** (07/10: `team-supervisor` and `team-supervisor-app`, the new names of claude-master and
-claude-master-watch; keep the old names until they are gone everywhere). A renamed repository keeps its id, so it
+claude-master-watch; 08/10: `supervisor` and `supervisor-app`, the new names of those two; keep the old names until they
+are gone everywhere). A renamed repository keeps its id, so it
 stays in the installation with its labels and private reporting: one test publication on the new name is enough. Add it to `OBSERVE_REPOS` and to `ANON_TOOLS` in `observe.py` (OB40 checks they match). Once the
 repository exists, add it to the App's installation, then run steps a and b on it, deploy as in step d, and run step f.
 

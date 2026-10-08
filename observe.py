@@ -73,7 +73,7 @@ PRIVACY = "https://github.com/frsorrentino/claude-observe/blob/main/PRIVACY.md" 
 # i plugin che il nostro servizio accetta (OBSERVE_REPOS di server/report.php): una copia in un altro plugin non
 # offre un servizio che la rifiuterebbe. Un endpoint diverso, scelto dall'utente, vale per tutti
 ANON_TOOLS = {"fable-director", "claude-master", "chrome-bridge", "claude-observe", "claude-master-watch", "team-supervisor",
-              "team-supervisor-app"}
+              "team-supervisor-app", "supervisor", "supervisor-app"}
 MSG = {
  "it": {
   "observe.summary": "OSSERVAZIONI {tool}: {new} nuove, {again} ricorrenti — `{cmd} list {tool}` (triage: `observe mark ID D|L|S|done`)",
