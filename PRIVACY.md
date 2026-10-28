@@ -1,6 +1,6 @@
 # Anonymous sending: privacy note
 
-*Draft of 27/09/2026, not yet in force.*
+*In force since 6 October 2026, when anonymous sending went live. Last updated 28 October 2026: «Always anonymous».*
 
 This note covers the «Send anonymously» option of claude-observe. With it, a report on a plugin reaches the plugin's
 maintainers without your GitHub account. The other option, «Send from my GitHub», goes from your machine straight to
@@ -13,8 +13,9 @@ anonymously», or after you have chosen «Always anonymous» once (see below). T
 
 - the plugin's name and version;
 - two flags: whether the report is a security one, and whether one of its observations blocked the work;
-- the title and body of the report. This is the text you were shown, word for word. It was anonymized on your
-  computer before you saw it: no parameter values, no home paths, no user names, no e-mail addresses, no secrets,
+- the title and body of the report. For a report you confirmed, this is the text you were shown, word for word.
+  With «Always anonymous» nobody is shown it: it is built the same way, without notes and workarounds. In both cases
+  it was anonymized on your computer before it left: no parameter values, no home paths, no user names, no e-mail addresses, no secrets,
   and file and folder names under your home are replaced by `<file>` and `<dir>`.
 
 Nothing else is sent: no GitHub account, no machine name, no identifier, no cookie.
@@ -44,10 +45,10 @@ went out (`observe stats`). The count is a local file and is never sent.
 
 ## What the service does with it
 
-- **Checks** that the request is a claude-observe report for one of the five plugins it serves, within the size
-  limit. It refuses anything else. It also refuses a text that still looks like it contains a home path, an e-mail
+- **Checks** that the request is a claude-observe report for one of the five plugins it serves (also under their
+  former names), within the size limit. It refuses anything else. It also refuses a text that still looks like it contains a home path, an e-mail
   address or a secret. In that case nothing is published, and the client tells you why.
-- **Publishes** the report and then forgets it. A normal report becomes a **public** issue on the plugin's GitHub
+- **Publishes** the report, with one line added at the end that links this note, and then forgets it. A normal report becomes a **public** issue on the plugin's GitHub
   repository, or a comment on an open anonymous issue with the same title. The author is the service's GitHub App,
   and the issue has the labels `from-observe` and `anonymous`. A security report becomes a GitHub **private
   vulnerability report** on that repository, which only the maintainers can read.
@@ -67,8 +68,8 @@ user agent `claude-observe`. It does not have the content of the report. SiteGro
 
 ## Who reads it
 
-- A public issue: anyone, like every issue on a public GitHub repository. Its text is the anonymized draft you saw
-  before sending.
+- A public issue: anyone, like every issue on a public GitHub repository. Its text is the anonymized draft: the one you saw
+  before sending, or, with «Always anonymous», one built the same way.
 - A private vulnerability report: the maintainers of the plugin only.
 - Nobody else. The service has no analytics, and it sends nothing to third parties besides GitHub.
 
@@ -78,8 +79,8 @@ users of those plugins report errors without a GitHub account.
 ## How to have a report deleted
 
 The report does not identify you, so nobody can find "your" reports for you. You know them by their link, which
-claude-observe printed when it sent them. It also remains in your local record, in the `reported` field of
-`observe list --all`.
+claude-observe printed when it sent them (a report sent by «Always anonymous» prints nothing). The link also remains
+in your local record, in the `reported` field of `observe list --all`.
 
 To have a report deleted, send the link:
 
