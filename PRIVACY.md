@@ -9,7 +9,7 @@ GitHub under your name, and this service is not involved.
 ## What leaves your computer
 
 One HTTPS request to `https://www.francescosorrentino.com/api/observe/report.php`, sent only after you choose «Send
-anonymously». The request carries:
+anonymously», or after you have chosen «Always anonymous» once (see below). The request carries:
 
 - the plugin's name and version;
 - two flags: whether the report is a security one, and whether one of its observations blocked the work;
@@ -20,6 +20,27 @@ anonymously». The request carries:
 Nothing else is sent: no GitHub account, no machine name, no identifier, no cookie.
 
 Like every request on the internet, this one also carries your **IP address**.
+
+## «Always anonymous»
+
+It is the same request, without the question each time. It is off until you choose it. You turn it on once, by
+choosing «Always anonymous» when a report is offered: that report goes out, and your yes is saved on your computer, in
+claude-observe's config (`tools.<plugin>.always_anonymous`, with the date). It applies to that plugin only.
+
+While it is on:
+
+- only the errors recorded by the hook go out without a question: the call, the error message already anonymized,
+  the count, the dates and the versions. Notes and workarounds written by hand never do, and neither do security
+  observations, which keep their private path;
+- at most one report a day per plugin, plus one each time an error comes back three times in the same session;
+- a line on screen says each time that a report is being sent.
+
+Turn it off with `/<plugin>:observe anonymous off`. From then on every report asks for your yes again.
+
+## What stays on your computer
+
+claude-observe counts, for each plugin, how many offers were shown, which option was chosen and how many reports
+went out (`observe stats`). The count is a local file and is never sent.
 
 ## What the service does with it
 

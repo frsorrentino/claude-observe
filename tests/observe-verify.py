@@ -54,6 +54,9 @@ OB40 il servizio anonimo acceso (06/10): l'endpoint di default lo offre solo ai 
      un altro plugin; README e comando lo descrivono, senza «coming»
 OB42 invio anonimo: la descrizione dell'opzione porta alla nota privacy; il rifiuto del servizio arriva col suo motivo;
      un guasto di rete o di TLS si riprova una volta e poi si dice chiaro; mai inviato, le osservazioni restano
+OB44 «Sempre in forma anonima»: un si' solo, spento di default, revocabile; poi solo errori, mai note (always_anonymous_consent)
+OB45 lo stesso errore tre volte nella sessione: proposta subito, una volta sola (propose_on_repeat)
+OB46 chi ha inviato vede «corretto in X» alla sessione dopo, da una voce known del plugin (fixed_notice_reported)
 OB43 sync.py conserva il segmento specifico del plugin fra i due marcatori di commands/observe.md (sync_preserves_segment)
 """
 import json
@@ -697,9 +700,10 @@ o2 = opts_of(obs("report", "chrome-bridge").stdout)
 cfg.write_text(json.dumps({**BASE, "endpoint": EP_URL}))
 d29 = obs("report", "chrome-bridge").stdout
 o3 = opts_of(d29)
-check("OB29 without observe.endpoint the draft offers two options (Invia dal mio GitHub, Non ora); with it three (plus Invia in forma anonima), each with a one-line description and a command; the tail says AskUserQuestion",
-      [o["label"] for o in o2] == ["Invia dal mio GitHub", "Non ora"] and [o["label"] for o in o3] == ["Invia dal mio GitHub", "Invia in forma anonima", "Non ora"]
-      and all(o["description"] and o["command"] for o in o3) and "AskUserQuestion" in d29 and "chrome-bridge --send" in o3[0]["command"] and o3[1]["command"].endswith("--anonymous") and o3[2]["command"].endswith("--later"), json.dumps(o2) + json.dumps(o3) + d29[-400:])
+check("OB29 without observe.endpoint the draft offers two options (Invia dal mio GitHub, Non ora); with it four (plus Invia in forma anonima and Sempre in forma anonima), each with a one-line description and a command; the tail says AskUserQuestion",
+      [o["label"] for o in o2] == ["Invia dal mio GitHub", "Non ora"] and [o["label"] for o in o3] == ["Invia dal mio GitHub", "Invia in forma anonima", "Sempre in forma anonima", "Non ora"]
+      and all(o["description"] and o["command"] for o in o3) and "AskUserQuestion" in d29 and "chrome-bridge --send" in o3[0]["command"] and o3[1]["command"].endswith("--anonymous")
+      and o3[2]["command"].endswith("--anonymous --always") and o3[3]["command"].endswith("--later"), json.dumps(o2) + json.dumps(o3) + d29[-400:])
 fake_gh(auth=False)
 o3b = opts_of(obs("report", "chrome-bridge").stdout)
 check("OB29 without gh the first option says it opens a link in the browser", "browser" in o3b[0]["description"] and "link" in o3b[0]["description"], json.dumps(o3b))
@@ -1061,8 +1065,8 @@ o40 = opts_of(obs("send").stdout)
 obs("add", "fd", "nota per OB40", tool=FD)
 o40fd = opts_of(obs("report", "fd", tool=FD).stdout)
 cfg.write_text(json.dumps(BASE))
-check("OB40 with the default config chrome-bridge offers «Invia dal mio GitHub», «Invia in forma anonima» (the www endpoint) and «Non ora»; README and the command template describe «Send anonymously» and no longer say it is coming",
-      [o["label"] for o in o40] == ["Invia dal mio GitHub", "Invia in forma anonima", "Non ora"]
+check("OB40 with the default config chrome-bridge offers «Invia dal mio GitHub», «Invia in forma anonima» (the www endpoint), «Sempre in forma anonima» and «Non ora»; README and the command template describe «Send anonymously» and no longer say it is coming",
+      [o["label"] for o in o40] == ["Invia dal mio GitHub", "Invia in forma anonima", "Sempre in forma anonima", "Non ora"]
       and "«Send anonymously»" in readme and "«Send anonymously»" in tmpl and "coming" not in readme + tmpl, json.dumps(o40))
 check("OB40 with the default config a plugin outside the service's allowlist (fd) is never offered «Invia in forma anonima»",
       o40fd and "Invia in forma anonima" not in [o["label"] for o in o40fd], json.dumps(o40fd))
@@ -1087,6 +1091,86 @@ check("OB41 standard folders, tool folders and the plugin's own folders and name
       "~/.claude/plugins/cache/<dir>/fd/scripts/video-sheet.sh" in d41 and "~/.config/claude-observe/config.json" in d41
       and "~/plugin-fd/scripts/video-sheet.sh" in d41, d41[-1500:])
 
+# OB44-OB46 (28/10/2026): favorire l'invio. Tre plugin nuovi, ciascuno con la sua casella, e un endpoint finto come
+# quello di OB29, spento dopo OB29: il suo indirizzo accetterebbe la connessione e non risponderebbe mai
+ep_srv = ThreadingHTTPServer(("127.0.0.1", 0), EPH)
+threading.Thread(target=ep_srv.serve_forever, daemon=True).start()
+EP_URL = f"http://127.0.0.1:{ep_srv.server_port}/observe"
+def tool_json(name, **extra):
+    f = TOOLS / f"{name}.json"
+    f.write_text(json.dumps({"name": name, "repo": f"frsorrentino/{name}", "match": {"mcp": [f"mcp__{name}__"]}, **extra}))
+    return f
+
+
+def stop_line(tool):
+    out = obs("stop", stdin=json.dumps({"session_id": "S-1", "cwd": str(home / "ws" / "clienti" / "acme-shop")}), tool=tool).stdout
+    return json.loads(out)["systemMessage"] if out.strip() else ""
+
+
+def cfg_tools():
+    return json.loads(cfg.read_text()).get("tools") or {}
+
+
+# OB44 always_anonymous_consent: la quarta scelta, un si' solo, spento di default e revocabile; poi solo errori, mai note
+T44 = tool_json("obs44")
+cfg.write_text(json.dumps({**BASE, "endpoint": EP_URL, "propose_after": 1}))
+fail("mcp__obs44__run", {"x": 1}, "kaputt44 primo", tool=T44)
+st0 = obs("anonymous", "status", tool=T44).stdout
+first = stop_line(T44)
+d44 = obs("report", "obs44", tool=T44).stdout
+o44 = opts_of(d44)
+always = next((o for o in o44 if o["label"] == "Sempre in forma anonima"), None)
+posts0 = len(EP["posts"])
+cfg0 = json.dumps(cfg_tools())   # prima della scelta: la chiave non c'e'
+a44 = obs("report", *always["command"].split(" report ", 1)[1].split(), tool=T44) if always else None
+check("OB44 always_anonymous_consent: off by default (status off, the usual line, no key in the config)",
+      "off" in st0 and "/obs44:observe send" in first and "always_anonymous" not in cfg0, st0 + first + cfg0)
+check("OB44 always_anonymous_consent: the fourth option sends this report anonymously and only then saves the yes in the config",
+      a44 is not None and a44.returncode == 0 and len(EP["posts"]) == posts0 + 1 and cfg_tools().get("obs44", {}).get("always_anonymous")
+      and "acceso" in a44.stdout and "anonymous off" in a44.stdout, (a44.stdout + a44.stderr) if a44 else json.dumps(o44))
+fail("mcp__obs44__run", {"x": 1}, "kaputt44 secondo", tool=T44)
+obs("add", "obs44", "nota libera che non deve uscire", tool=T44)
+auto44 = stop_line(T44)
+end = time.time() + 15
+while time.time() < end and len(EP["posts"]) < posts0 + 2:
+    time.sleep(0.2)
+body44 = EP["posts"][-1][1]["body"] if len(EP["posts"]) >= posts0 + 2 else ""
+check("OB44 always_anonymous_consent: with the yes saved a new error goes out on its own, with a line on screen; the hand-written note never",
+      "in forma anonima" in auto44 and "anonymous off" in auto44 and "kaputt44 secondo" in body44 and "nota libera" not in body44
+      and any(r.get("status") == "reported" for r in recs("obs44") if "secondo" in str(r.get("error"))), auto44 + " | " + body44)
+off44 = obs("anonymous", "off", tool=T44)
+check("OB44 always_anonymous_consent: `anonymous off` removes the yes; status says off and the option comes back",
+      off44.returncode == 0 and "always_anonymous" not in json.dumps(cfg_tools().get("obs44", {})) and "off" in obs("anonymous", "status", tool=T44).stdout
+      and obs("anonymous", "on", tool=T44).returncode == 2, off44.stdout + off44.stderr)
+check("OB44 always_anonymous_consent: a security report never offers «Sempre in forma anonima», and --always without --anonymous is refused",
+      all(o["label"] != "Sempre in forma anonima" for o in opts_of(obs("report", "chrome-bridge", "--security").stdout))
+      and obs("report", "obs44", "--send", "x", "--always", tool=T44).returncode == 2, "")
+st44 = obs("stats", "obs44", tool=T44).stdout
+check("OB44 the local count: offers shown, drafts, choices and sends", all(k in st44 for k in ("shown 1", "drafted 1", "sent_always 1", "auto_sent 1", "always_off 1")), st44)
+
+# OB45 propose_on_repeat: lo stesso errore tre volte nella stessa sessione → la proposta subito, una volta sola
+T45 = tool_json("obs45")
+cfg.write_text(json.dumps({**BASE, "endpoint": EP_URL}))
+outs45 = [fail("mcp__obs45__run", {"x": 1}, "kaputt45 sempre uguale", tool=T45, session_id="S-45").stdout for _ in range(4)]
+j45 = json.loads(outs45[2]) if outs45[2].strip() else {}
+check("OB45 propose_on_repeat: the third time in the session a line on screen and the offer to Claude; not before, not again",
+      not outs45[0].strip() and not outs45[1].strip() and "3 volte" in j45.get("systemMessage", "") and "/obs45:observe send" in j45.get("systemMessage", "")
+      and "report obs45" in j45.get("hookSpecificOutput", {}).get("additionalContext", "") and not outs45[3].strip(), json.dumps(outs45))
+other45 = fail("mcp__obs45__run", {"x": 1}, "kaputt45 sempre uguale", tool=T45, session_id="S-46").stdout
+check("OB45 propose_on_repeat: another session starts its own count (one more error is not a repeat there)", not other45.strip(), other45)
+
+# OB46 fixed_notice_reported: chi ha inviato un errore sa, alla sessione dopo, che e' corretto in X
+T46 = tool_json("obs46")
+fail("mcp__obs46__run", {"x": 1}, "kaputt46 rotto", tool=T46)
+h46 = sent_hash(obs("report", "obs46", tool=T46).stdout)
+obs("report", "obs46", "--send", h46, "--anonymous", tool=T46)
+tool_json("obs46", known=[{"call": "mcp__obs46__run", "error": "kaputt46", "fixed_in": "2.0.0"}])
+ss = lambda: obs("session-start", stdin=json.dumps({"session_id": "S-2", "cwd": str(home / "ws" / "clienti" / "acme-shop"), "source": "startup"}), tool=T46).stdout  # noqa: E731
+s46a, s46b = ss(), ss()
+check("OB46 fixed_notice_reported: a reported error covered by a `known` fix shipped with the plugin → one line at the next session, once",
+      "ERRORE SEGNALATO CORRETTO obs46" in s46a and "2.0.0" in s46a and "aggiorna obs46" in s46a and "CORRETTO" not in s46b, s46a + " | " + s46b)
+
+ep_srv.shutdown()
 shutil.rmtree(tmp, ignore_errors=True)
 print(f"\n{OKS}/{OKS + len(FAILS)} OK" + (", FAIL: " + ", ".join(FAILS) if FAILS else ""))
 sys.exit(1 if FAILS else 0)

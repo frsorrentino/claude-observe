@@ -16,15 +16,18 @@ repo), one copy per plugin, checked by hash at every release of that plugin.
   Videos or AppData stay, and so do the plugin's own).
 - When a known error comes back, the hook hands Claude the recorded workaround, or «fixed in X: update» when the
   installed version is older.
-- **Nothing leaves the computer** unless you say yes: at a natural moment Claude offers to send the collected errors as
+- **Nothing leaves the computer** unless you say yes, for each report or once for all with «Always anonymous»: at a natural moment Claude offers to send the collected errors as
   **one** GitHub issue per plugin (or a comment on an open issue about the same error), shows the anonymized text, and
   sends it only after your confirmation — with `gh`, or as a prefilled link you open yourself. What was sent is never
   offered again. You see the offer too: at the end of a turn, one line on screen such as «2 observations on
   chrome-bridge ready to send: /chrome-bridge:observe send», once, then silence for seven days. The question comes as
   buttons: «Send from my GitHub» (an issue in your name, through `gh` or a prefilled GitHub link you open; you can
   follow it), «Send anonymously» (our service opens the issue without your name and keeps no IP: see
-  [PRIVACY.md](PRIVACY.md); offered only for the plugins the service accepts) and «Not now» (it comes back in seven
-  days). Security observations go only through the private paths.
+  [PRIVACY.md](PRIVACY.md); offered only for the plugins the service accepts), «Always anonymous» (the same, and from
+  then on new errors go out that way without asking: errors only, never your notes; off with
+  `/<plugin>:observe anonymous off`) and «Not now» (it comes back in seven days). The same error three times in one
+  session brings the offer at once. When an error you reported is fixed in a new version, the next session tells you.
+  Security observations go only through the private paths.
 - **Security observations take a private path.** Claude marks a note `--security` when it saw a read or write outside
   the perimeter, a secret exposed, code run that was not asked for, or data leaving the computer (it decides from what
   it saw; it never asks you to classify), and `--severity high` when a defect of the plugin blocked the work (data
