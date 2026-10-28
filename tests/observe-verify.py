@@ -54,6 +54,7 @@ OB40 il servizio anonimo acceso (06/10): l'endpoint di default lo offre solo ai 
      un altro plugin; README e comando lo descrivono, senza «coming»
 OB42 invio anonimo: la descrizione dell'opzione porta alla nota privacy; il rifiuto del servizio arriva col suo motivo;
      un guasto di rete o di TLS si riprova una volta e poi si dice chiaro; mai inviato, le osservazioni restano
+OB43 sync.py conserva il segmento specifico del plugin fra i due marcatori di commands/observe.md (sync_preserves_segment)
 """
 import json
 import os
@@ -357,6 +358,25 @@ check("OB14 sync: copy and SOURCE; PostToolUseFailure with the plugin's matcher;
       and len(hk["SessionStart"]) == 2 and hk["SessionStart"][0]["hooks"][0]["command"] == "echo mine"
       and "observe.py\" session-start" in hk["SessionStart"][1]["hooks"][0]["command"] and "observe.py" in src_meta["sha256"],
       s1.stdout + s1.stderr + json.dumps(hk))
+# OB43 sync_preserves_segment: il paragrafo specifico del plugin, fra i due marcatori, sopravvive al sync
+# (dalla 1.52.4 fable-director lo aveva perso: il sync rigenerava observe.md per intero)
+def sync_preserves_segment():
+    cmd_f = plug / "commands" / "observe.md"
+    t = cmd_f.read_text(encoding="utf-8")
+    if SEG_START not in t or SEG_END not in t:
+        return False, "markers missing in the generated file"
+    head, rest = t.split(SEG_START, 1)
+    mine = "\n- Specific to this plugin: what a hook cannot see.\n"
+    cmd_f.write_text(head + SEG_START + mine + SEG_END + rest.split(SEG_END, 1)[1], encoding="utf-8")
+    r = subprocess.run([sys.executable, str(SRC1 / "sync.py"), str(plug)], capture_output=True, text=True)
+    after = cmd_f.read_text(encoding="utf-8")
+    return r.returncode == 0 and after.count(mine) == 1 and after.count(SEG_START) == 1, r.stdout + r.stderr + after[-300:]
+
+
+SEG_START = "<!-- plugin-specific: sync.py keeps what is written between this line and the next marker -->"
+SEG_END = "<!-- end plugin-specific -->"
+ok43, why43 = sync_preserves_segment()
+check("OB43 sync_preserves_segment: the plugin-specific lines between the two markers survive a new sync", ok43, why43)
 c1 = subprocess.run(["bash", str(SRC1 / "check.sh"), str(plug)], capture_output=True, text=True)
 with open(plug / "observe" / "observe.py", "a") as f:
     f.write("# toccato a mano\n")

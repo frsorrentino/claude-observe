@@ -60,7 +60,8 @@ same plugin at least `propose_every_days` days (7) pass, and the session that ma
    `hooks/hooks.json` (PostToolUseFailure, whose matcher covers each MCP server under both names, `mcp__<server>__`
    and the installed plugin's `mcp__plugin_<plugin>_<server>__`; SessionStart; Stop — the line on screen), and generates
    `commands/observe.md`, the `/<plugin>:observe send|send --security|list|mark|add` command, from the template in
-   `commands/` (a hand-written one is left alone). Idempotent.
+   `commands/` (a hand-written one is left alone). The lines between the two `plugin-specific` markers at the end of
+   that file belong to the plugin: a new sync keeps them. Idempotent.
 3. In the plugin's release script: `bash check.sh <plugin-root>` fails if the copy differs from the source.
 4. Publish a SECURITY.md in the repository saying how to report privately (the advisory page, or the address).
 
