@@ -23,6 +23,9 @@ Errors of {name}'s own calls are recorded by a hook on their own (claude-observe
   appears for them.
 - `list [--all]`, `show ID`, `mark ID D|L|S|done` (D our defect, L someone else's limit, S the site's behaviour),
   `export {name}`.
+- `anonymous off`: turns «Always anonymous» off, so every report asks for the user's yes again (`anonymous status`
+  shows it; it is turned on only by choosing «Always anonymous»).
+- `stats`: the local count of offers shown, choices and reports sent; it never leaves the computer.
 - `add {name} "what happened" [--error "…"] [--workaround "…"] [--class D|L|S] [--security] [--severity high]`, or
   `add --on ID …` to enrich a record the hook wrote. `--security`: a read or write outside the perimeter, a secret
   exposed, code run that was not asked for, data leaving the computer. `--severity high`: a defect of ours that blocks
