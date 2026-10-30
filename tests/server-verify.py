@@ -344,6 +344,27 @@ cl = subprocess.run(["bash", str(ROOT / "server/check-live.sh"), URL], capture_o
 check("SV12 server/check-live.sh against a running service: GET 200, non-draft POST 400, secret and state paths 403/404 → all ok",
       cl.returncode == 0 and "all ok" in cl.stdout and cl.stdout.count("ok   ") == 11, cl.stdout + cl.stderr)
 
+# SV13 (30/10, one way in): the app's issues on supervisor, under its own title; its private reports stay on supervisor-app
+for _app in ("supervisor-app", "team-supervisor-app"):
+    reset_rate()
+    GH["calls"].clear()
+    _n = len(GH["issues"].get("frsorrentino/supervisor", []))
+    s13, j13 = call(draft(_app))
+    _i13 = GH["issues"].get("frsorrentino/supervisor", [])
+    _tok = [c for c in GH["calls"] if c[1].endswith("/access_tokens")]
+    check(f"SV13 {_app}: the issue goes to frsorrentino/supervisor with the title [{_app}], the token limited to supervisor; none on the app's repository",
+          s13 == 201 and "/frsorrentino/supervisor/issues/" in j13["url"] and len(_i13) == _n + 1 and _i13[-1]["title"].startswith(f"[{_app}] ")
+          and _tok[0][3] == {"repositories": ["supervisor"]} and not GH["issues"].get(f"frsorrentino/{_app}"), (s13, j13, _tok))
+    reset_rate()
+    GH["calls"].clear()
+    s13b, j13b = call(draft(_app, security=True))
+    _tok = [c for c in GH["calls"] if c[1].endswith("/access_tokens")]
+    check(f"SV13 {_app}: a security report stays private on frsorrentino/supervisor-app, with the token limited to it",
+          s13b == 201 and GH["reports"][-1][0] == "frsorrentino/supervisor-app" and _tok[0][3] == {"repositories": ["supervisor-app"]}, (s13b, j13b, _tok))
+reset_rate()
+s13c, _ = call(draft("supervisor"))
+check("SV13 supervisor itself still reports on its own repository", s13c == 201 and GH["issues"]["frsorrentino/supervisor"][-1]["title"].startswith("[supervisor] "), s13c)
+
 php.terminate()
 ghs.shutdown()
 shutil.rmtree(TMP, ignore_errors=True)

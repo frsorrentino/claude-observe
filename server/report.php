@@ -24,9 +24,15 @@ const OBSERVE_REPOS = [   // plugin → repository: the only destinations; anyth
     'claude-observe' => 'frsorrentino/claude-observe',
     'claude-master-watch' => 'frsorrentino/claude-master-watch',
     'team-supervisor' => 'frsorrentino/team-supervisor',   // claude-master's new name (07/10); both until the old one is gone
-    'team-supervisor-app' => 'frsorrentino/team-supervisor-app',   // claude-master-watch's new name (07/10), same
+    'team-supervisor-app' => 'frsorrentino/supervisor',   // claude-master-watch's new name (07/10), same; issues as below
     'supervisor' => 'frsorrentino/supervisor',   // team-supervisor's new name (08/10); both until the old one is gone
-    'supervisor-app' => 'frsorrentino/supervisor-app',   // team-supervisor-app's new name (08/10), same
+    // team-supervisor-app's new name (08/10), same. 30/10 (one way in): the issues of the app go to supervisor, under the
+    // title «[supervisor-app] …»; its private vulnerability reports do not move, see OBSERVE_SECURITY_REPOS
+    'supervisor-app' => 'frsorrentino/supervisor',
+];
+const OBSERVE_SECURITY_REPOS = [   // where a plugin's private reports go when it is not its OBSERVE_REPOS entry
+    'team-supervisor-app' => 'frsorrentino/supervisor-app',
+    'supervisor-app' => 'frsorrentino/supervisor-app',
 ];
 const OBSERVE_FIELDS = ['plugin', 'version', 'security', 'severity', 'title', 'body'];
 const OBSERVE_MAX_BYTES = 65536;   // the draft is at most 20 rows of ~1.5 KB
@@ -61,7 +67,7 @@ function observe_config()
     }
     $c = require $path;
     $c['config'] = $path;
-    $c += ['github_api' => 'https://api.github.com', 'repos' => OBSERVE_REPOS, 'per_ip_hour' => 5, 'per_ip_day' => 10,
+    $c += ['github_api' => 'https://api.github.com', 'repos' => OBSERVE_REPOS, 'security_repos' => OBSERVE_SECURITY_REPOS, 'per_ip_hour' => 5, 'per_ip_day' => 10,
            'global_day' => 50, 'privacy' => OBSERVE_PRIVACY];
     foreach (['app_id', 'private_key', 'state_dir'] as $k) {
         if (empty($c[$k])) {
@@ -284,7 +290,7 @@ function observe_token($c, $repo)
 
 function observe_publish($c, $r)
 {
-    $repo = $c['repos'][$r['plugin']];
+    $repo = $r['security'] ? ($c['security_repos'][$r['plugin']] ?? $c['repos'][$r['plugin']]) : $c['repos'][$r['plugin']];
     $auth = observe_token($c, $repo);
     $foot = "\n\n---\nSent anonymously through the claude-observe service ([privacy]({$c['privacy']}))"
           . ($r['version'] ? "; {$r['plugin']} {$r['version']}" : '') . ($r['severity'] === 'high' ? '; severity: high' : '') . '.';

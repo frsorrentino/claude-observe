@@ -99,4 +99,7 @@ are gone everywhere). A renamed repository keeps its id, so it
 stays in the installation with its labels and private reporting: one test publication on the new name is enough. Add it to `OBSERVE_REPOS` and to `ANON_TOOLS` in `observe.py` (OB40 checks they match). Once the
 repository exists, add it to the App's installation, then run steps a and b on it, deploy as in step d, and run step f.
 
+**The app's issues** (30/10): `supervisor-app` and `team-supervisor-app` publish on `frsorrentino/supervisor`, under the
+title `[supervisor-app] …`; their private reports stay on `frsorrentino/supervisor-app` (`OBSERVE_SECURITY_REPOS`).
+
 To revoke the service: delete the App, or uninstall it from a repository. The key on the server then stops working.
