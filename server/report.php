@@ -15,6 +15,13 @@
  * ~/private/observe/config.php (server/README.md). The service refuses to run (503) when the private key or the state
  * folder sit under the document root or are readable by others: on SiteGround Nginx serves static files without
  * Apache, so an .htaccess does not protect them.
+ *
+ * 05/11/2026 (supervisor-feedback-immagine-05-11, observe-etichetta-anonimo-04-11): two optional fields. `labels`, from
+ * a closed list (app, suggerimento, bug), added to from-observe and anonymous. `image` {mime, data base64}, only for the
+ * plugins of OBSERVE_IMAGE_PLUGINS and never with a security report: a JPEG or PNG of at most 1 MB, its metadata
+ * removed (EXIF, text chunks), uploaded with a random name to the public repository of the images and linked at the end
+ * of the body. A request with only {plugin, image} uploads the image and answers its URL, for a client that opens the
+ * issue with the person's own GitHub. The images are public: the client says so before sending.
  */
 
 const OBSERVE_REPOS = [   // plugin → repository: the only destinations; anything else is refused
@@ -37,6 +44,12 @@ const OBSERVE_SECURITY_REPOS = [   // where a plugin's private reports go when i
 const OBSERVE_FIELDS = ['plugin', 'version', 'security', 'severity', 'title', 'body'];
 const OBSERVE_MAX_BYTES = 65536;   // the draft is at most 20 rows of ~1.5 KB
 const OBSERVE_LABELS = ['from-observe', 'anonymous'];
+const OBSERVE_EXTRA = ['labels', 'image'];   // optional, besides OBSERVE_FIELDS
+const OBSERVE_KIND_LABELS = ['app', 'suggerimento', 'bug'];   // the only labels a client may add
+const OBSERVE_IMAGE_PLUGINS = ['supervisor-app'];   // who may send an image
+const OBSERVE_IMAGES_REPO = 'frsorrentino/observe-immagini';   // public: where the images go
+const OBSERVE_IMAGE_MAX = 1048576;   // bytes of the image, decoded
+const OBSERVE_IMAGE_REQUEST_MAX = 1500000;   // a request with an image (base64 is 4/3 of the image)
 const OBSERVE_PRIVACY = 'https://github.com/frsorrentino/claude-observe/blob/main/PRIVACY.md';
 
 class ObserveError extends Exception
@@ -68,7 +81,7 @@ function observe_config()
     $c = require $path;
     $c['config'] = $path;
     $c += ['github_api' => 'https://api.github.com', 'repos' => OBSERVE_REPOS, 'security_repos' => OBSERVE_SECURITY_REPOS, 'per_ip_hour' => 5, 'per_ip_day' => 10,
-           'global_day' => 50, 'privacy' => OBSERVE_PRIVACY];
+           'global_day' => 50, 'privacy' => OBSERVE_PRIVACY, 'images_repo' => OBSERVE_IMAGES_REPO, 'images_day' => 30];
     foreach (['app_id', 'private_key', 'state_dir'] as $k) {
         if (empty($c[$k])) {
             throw new ObserveError(503, 'the service is not configured');
@@ -150,7 +163,7 @@ function observe_rate($c, $ip)
     }
 }
 
-function observe_count_published($c)
+function observe_count_published($c, $what = 'published')
 {
     $dir = rtrim($c['state_dir'], '/');
     $lock = fopen("$dir/.lock", 'c');
@@ -158,7 +171,7 @@ function observe_count_published($c)
     $file = "$dir/rate-" . gmdate('Ymd') . '.json';
     $s = json_decode((string)@file_get_contents($file), true);
     if (is_array($s)) {
-        $s['published'] = ($s['published'] ?? 0) + 1;
+        $s[$what] = ($s[$what] ?? 0) + 1;
         file_put_contents("$file.tmp", json_encode($s));
         chmod("$file.tmp", 0600);
         rename("$file.tmp", $file);
@@ -169,7 +182,8 @@ function observe_count_published($c)
 
 // ---------------------------------------------------------------------------------------------------- validation
 
-/** Only an observe draft (observe.py draft()) for a plugin of the allowlist; nothing else is published. */
+/** Only an observe draft (observe.py draft()) for a plugin of the allowlist; nothing else is published. Or, with only
+ * {plugin, image}, an image to upload. */
 function observe_validate($c, $raw)
 {
     $r = json_decode($raw, true);
@@ -178,13 +192,35 @@ function observe_validate($c, $raw)
     }
     $keys = array_keys($r);
     sort($keys);
+    if ($keys === ['image', 'plugin']) {
+        if (!is_string($r['plugin']) || !isset($c['repos'][$r['plugin']])) {
+            throw new ObserveError(400, 'this service accepts reports only for: ' . implode(', ', array_keys($c['repos'])));
+        }
+        $r['image'] = observe_image($r['plugin'], $r['image']);
+        $r['upload_only'] = true;
+        return $r;
+    }
     $want = OBSERVE_FIELDS;
     sort($want);
-    if ($keys !== $want) {
-        throw new ObserveError(400, 'the fields must be exactly: ' . implode(', ', OBSERVE_FIELDS));
+    if (array_values(array_diff($keys, OBSERVE_EXTRA)) !== $want) {
+        throw new ObserveError(400, 'the fields must be exactly: ' . implode(', ', OBSERVE_FIELDS) . ' (optional: ' . implode(', ', OBSERVE_EXTRA) . ')');
     }
     if (!is_string($r['plugin']) || !isset($c['repos'][$r['plugin']])) {
         throw new ObserveError(400, 'this service accepts reports only for: ' . implode(', ', array_keys($c['repos'])));
+    }
+    if (array_key_exists('labels', $r)) {
+        $l = $r['labels'];
+        if (!is_array($l) || !$l || array_keys($l) !== range(0, count($l) - 1) || count($l) > count(OBSERVE_KIND_LABELS)
+            || array_filter($l, function ($x) { return !is_string($x); })
+            || count(array_unique($l)) !== count($l) || array_diff($l, OBSERVE_KIND_LABELS) || $r['security'] !== false) {
+            throw new ObserveError(400, 'labels must be a list of: ' . implode(', ', OBSERVE_KIND_LABELS) . ' (never with security)');
+        }
+    }
+    if (array_key_exists('image', $r)) {
+        if ($r['security'] !== false) {
+            throw new ObserveError(400, 'an image never goes with a security report');
+        }
+        $r['image'] = observe_image($r['plugin'], $r['image']);
     }
     if (!($r['version'] === null || (is_string($r['version']) && preg_match('/^[0-9A-Za-z.+-]{1,40}$/', $r['version'])))) {
         throw new ObserveError(400, 'version must be null or a version string');
@@ -213,6 +249,129 @@ function observe_validate($c, $raw)
     }
     observe_screen($r['title'] . "\n" . $r['body']);
     return $r;
+}
+
+/** The image of a report: {mime, data base64} of a JPEG or PNG of at most OBSERVE_IMAGE_MAX bytes, for a plugin of
+ * OBSERVE_IMAGE_PLUGINS. Returns [mime, ext, bytes] with the metadata removed. */
+function observe_image($plugin, $img)
+{
+    if (!in_array($plugin, OBSERVE_IMAGE_PLUGINS, true)) {
+        throw new ObserveError(400, 'images are accepted only for: ' . implode(', ', OBSERVE_IMAGE_PLUGINS));
+    }
+    if (!is_array($img) || count($img) !== 2 || !isset($img['mime'], $img['data']) || !is_string($img['mime']) || !is_string($img['data'])) {
+        throw new ObserveError(400, 'image must be {mime, data} with data in base64');
+    }
+    $ext = ['image/jpeg' => 'jpg', 'image/png' => 'png'][$img['mime']] ?? null;
+    if (!$ext) {
+        throw new ObserveError(415, 'the image must be image/jpeg or image/png');
+    }
+    $bytes = base64_decode($img['data'], true);
+    if ($bytes === false || $bytes === '') {
+        throw new ObserveError(400, 'image data is not base64');
+    }
+    if (strlen($bytes) > OBSERVE_IMAGE_MAX) {
+        throw new ObserveError(413, 'the image is larger than ' . OBSERVE_IMAGE_MAX . ' bytes');
+    }
+    $info = @getimagesizefromstring($bytes);
+    $type = $ext === 'jpg' ? IMAGETYPE_JPEG : IMAGETYPE_PNG;
+    if (!$info || $info[2] !== $type || $info[0] < 1 || $info[1] < 1 || $info[0] > 8000 || $info[1] > 8000) {
+        throw new ObserveError(415, 'the image is not a ' . strtoupper($ext === 'jpg' ? 'jpeg' : 'png'));
+    }
+    $clean = $ext === 'jpg' ? observe_strip_jpeg($bytes) : observe_strip_png($bytes);
+    if ($clean === null) {
+        throw new ObserveError(415, 'the image is damaged');
+    }
+    return [$img['mime'], $ext, $clean];
+}
+
+/** A JPEG without its APP1-APP15 segments (EXIF with the place and the camera, XMP, ICC) and its comments; null if broken. */
+function observe_strip_jpeg($b)
+{
+    if (substr($b, 0, 2) !== "\xFF\xD8") {
+        return null;
+    }
+    $out = "\xFF\xD8";
+    $i = 2;
+    $n = strlen($b);
+    while ($i + 4 <= $n) {
+        if ($b[$i] !== "\xFF") {
+            return null;
+        }
+        $m = ord($b[$i + 1]);
+        if ($m === 0xFF) {   // fill byte
+            $i++;
+            continue;
+        }
+        if ($m === 0xD9) {
+            return $out . "\xFF\xD9";
+        }
+        if (($m >= 0xD0 && $m <= 0xD7) || $m === 0x01) {
+            $out .= substr($b, $i, 2);
+            $i += 2;
+            continue;
+        }
+        $len = (ord($b[$i + 2]) << 8) | ord($b[$i + 3]);
+        if ($len < 2 || $i + 2 + $len > $n) {
+            return null;
+        }
+        if ($m === 0xDA) {   // start of scan: the rest is the picture
+            return $out . substr($b, $i);
+        }
+        if (!(($m >= 0xE1 && $m <= 0xEF) || $m === 0xFE)) {
+            $out .= substr($b, $i, 2 + $len);
+        }
+        $i += 2 + $len;
+    }
+    return null;
+}
+
+/** A PNG without its text, time and EXIF chunks; null if broken. */
+function observe_strip_png($b)
+{
+    $sig = "\x89PNG\r\n\x1A\n";
+    if (substr($b, 0, 8) !== $sig) {
+        return null;
+    }
+    $out = $sig;
+    $i = 8;
+    $n = strlen($b);
+    while ($i + 12 <= $n) {
+        $len = unpack('N', substr($b, $i, 4))[1];
+        $type = substr($b, $i + 4, 4);
+        if ($len > $n - $i - 12) {
+            return null;
+        }
+        if (!in_array($type, ['tEXt', 'zTXt', 'iTXt', 'eXIf', 'tIME'], true)) {
+            $out .= substr($b, $i, 12 + $len);
+        }
+        $i += 12 + $len;
+        if ($type === 'IEND') {
+            return $out;
+        }
+    }
+    return null;
+}
+
+/** The images of the day: refused beyond images_day. Under the same lock as the rate. */
+function observe_images_left($c)
+{
+    $s = json_decode((string)@file_get_contents(rtrim($c['state_dir'], '/') . '/rate-' . gmdate('Ymd') . '.json'), true);
+    if (is_array($s) && ($s['images'] ?? 0) >= $c['images_day']) {
+        throw new ObserveError(429, 'the service reached its daily limit of images: retry tomorrow, or send without the image');
+    }
+}
+
+/** Uploads the image to the public repository of the images, with a random name; returns its URL. */
+function observe_upload_image($c, $img)
+{
+    observe_images_left($c);
+    [$mime, $ext, $bytes] = $img;
+    $repo = $c['images_repo'];
+    $path = gmdate('Y/m/') . bin2hex(random_bytes(12)) . ".$ext";
+    $res = observe_gh_ok('image', observe_gh($c, 'PUT', "/repos/$repo/contents/$path", observe_token($c, $repo),
+                                             ['message' => 'image', 'content' => base64_encode($bytes)]));
+    observe_count_published($c, 'images');
+    return $res['content']['download_url'] ?? "https://raw.githubusercontent.com/$repo/main/$path";
 }
 
 /** A second net behind the client's anonymizer: a text that still looks personal is refused, never published. */
@@ -291,7 +450,10 @@ function observe_token($c, $repo)
 function observe_publish($c, $r)
 {
     $repo = $r['security'] ? ($c['security_repos'][$r['plugin']] ?? $c['repos'][$r['plugin']]) : $c['repos'][$r['plugin']];
+    $img = isset($r['image']) ? observe_upload_image($c, $r['image']) : null;
     $auth = observe_token($c, $repo);
+    $body = $r['body'] . ($img ? "\n- screenshot: ![screenshot]($img)" : '');
+    $labels = array_values(array_unique(array_merge(OBSERVE_LABELS, $r['labels'] ?? [])));
     $foot = "\n\n---\nSent anonymously through the claude-observe service ([privacy]({$c['privacy']}))"
           . ($r['version'] ? "; {$r['plugin']} {$r['version']}" : '') . ($r['severity'] === 'high' ? '; severity: high' : '') . '.';
     if ($r['security']) {
@@ -307,12 +469,15 @@ function observe_publish($c, $r)
     foreach (is_array($open) ? $open : [] as $i) {
         if (($i['title'] ?? '') === $r['title'] && empty($i['pull_request'])) {
             $res = observe_gh_ok('comment', observe_gh($c, 'POST', "/repos/$repo/issues/{$i['number']}/comments", $auth,
-                                                       ['body' => "**{$r['title']}**\n\n{$r['body']}$foot"]));
+                                                       ['body' => "**{$r['title']}**\n\n$body$foot"]));
+            if (!empty($r['labels'])) {   // the kind on the issue the comment joins
+                observe_gh_ok('labels', observe_gh($c, 'POST', "/repos/$repo/issues/{$i['number']}/labels", $auth, ['labels' => $r['labels']]));
+            }
             return $res['html_url'] ?? $i['html_url'];
         }
     }
     $res = observe_gh_ok('issue', observe_gh($c, 'POST', "/repos/$repo/issues", $auth,
-                                             ['title' => $r['title'], 'body' => $r['body'] . $foot, 'labels' => OBSERVE_LABELS]));
+                                             ['title' => $r['title'], 'body' => $body . $foot, 'labels' => $labels]));
     return $res['html_url'];
 }
 
@@ -345,11 +510,18 @@ function observe_main()
         if (stripos((string)($_SERVER['CONTENT_TYPE'] ?? ''), 'application/json') !== 0) {
             throw new ObserveError(415, 'the request must be application/json');
         }
-        $raw = (string)file_get_contents('php://input', false, null, 0, OBSERVE_MAX_BYTES + 1);
-        if (strlen($raw) > OBSERVE_MAX_BYTES) {
-            throw new ObserveError(413, 'the report is larger than ' . OBSERVE_MAX_BYTES . ' bytes');
+        $raw = (string)file_get_contents('php://input', false, null, 0, OBSERVE_IMAGE_REQUEST_MAX + 1);
+        if (strlen($raw) > OBSERVE_IMAGE_REQUEST_MAX || (strlen($raw) > OBSERVE_MAX_BYTES && strpos($raw, '"image"') === false)) {
+            throw new ObserveError(413, 'the report is larger than ' . OBSERVE_MAX_BYTES . ' bytes (' . OBSERVE_IMAGE_REQUEST_MAX . ' with an image)');
         }
         $r = observe_validate($c, $raw);
+        if (!empty($r['upload_only'])) {
+            observe_answer(201, ['url' => observe_upload_image($c, $r['image'])]);
+            return;
+        }
+        if (strlen($raw) > OBSERVE_MAX_BYTES && !isset($r['image'])) {
+            throw new ObserveError(413, 'the report is larger than ' . OBSERVE_MAX_BYTES . ' bytes');
+        }
         $url = observe_publish($c, $r);
         observe_count_published($c);
         observe_answer(201, ['url' => $url]);

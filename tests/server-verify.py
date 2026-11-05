@@ -17,6 +17,14 @@ SV9  GitHub che rifiuta → 502, niente pubblicato; nel log degli errori lo stat
 SV10 nessun contenuto resta: dopo tutti i casi, il testo delle bozze non e' in nessun file di stato ne' nel log
 SV11 segreti o stato sotto la document root, o leggibili da altri → 503, niente pubblicato
 SV12 server/check-live.sh contro un servizio acceso: tutto ok
+SV13 le issue dell'app su supervisor, le sue segnalazioni private su supervisor-app
+SV14 (05/11) labels da una lista chiusa (app, suggerimento, bug) aggiunte a from-observe e anonymous; fuori lista, doppie,
+     non una lista o con security → 400 senza GitHub
+SV15 (05/11) image con la bozza di supervisor-app: JPEG e PNG caricati nel repo pubblico delle immagini, nome casuale,
+     senza EXIF, commenti e testi; il token limitato a quel repo; il link in fondo al corpo della issue
+SV16 (05/11) solo {plugin, image}: carica e torna l'URL, nessuna issue; rifiuti: plugin senza immagini, gif, byte che non
+     sono l'immagine, oltre 1 MB, con security, una richiesta oltre 64 KB senza immagine
+SV17 (05/11) il limite delle immagini del giorno → 429, niente caricato
 """
 import json
 import os
@@ -66,7 +74,7 @@ shutil.copy(ROOT / "server/report.php", DOCROOT / "api/observe/report.php")
 ERRLOG = TMP / "php_errors.log"
 
 # ------------------------------------------------------------------------------------------------ GitHub finto
-GH = {"calls": [], "issues": {}, "reports": [], "fail": None, "jwt_ok": []}
+GH = {"calls": [], "issues": {}, "reports": [], "fail": None, "jwt_ok": [], "files": {}}
 
 
 def b64d(s):
@@ -126,6 +134,14 @@ class GitHub(BaseHTTPRequestHandler):
             i = GH["issues"][repo][int(parts[4]) - 1]
             i["comments"].append(body["body"])
             return self.reply(201, {"html_url": f"{i['html_url']}#issuecomment-{len(i['comments'])}"})
+        if method == "POST" and parts[3] == "issues" and parts[5:] == ["labels"]:
+            i = GH["issues"][repo][int(parts[4]) - 1]
+            i["labels"] = list(dict.fromkeys((i["labels"] or []) + body["labels"]))
+            return self.reply(200, [{"name": x} for x in i["labels"]])
+        if method == "PUT" and parts[3] == "contents":
+            pth = "/".join(parts[4:])
+            GH["files"].setdefault(repo, {})[pth] = base64.b64decode(body["content"])
+            return self.reply(201, {"content": {"path": pth, "download_url": f"https://raw.githubusercontent.com/{repo}/main/{pth}"}})
         if method == "POST" and parts[3:] == ["security-advisories", "reports"]:
             GH["reports"].append((repo, body))
             return self.reply(201, {"html_url": f"https://github.com/{repo}/security/advisories/GHSA-test-{len(GH['reports'])}"})
@@ -136,6 +152,9 @@ class GitHub(BaseHTTPRequestHandler):
 
     def do_POST(self):
         self.handle_any("POST")
+
+    def do_PUT(self):
+        self.handle_any("PUT")
 
 
 GHPORT = free_port()
@@ -364,6 +383,104 @@ for _app in ("supervisor-app", "team-supervisor-app"):
 reset_rate()
 s13c, _ = call(draft("supervisor"))
 check("SV13 supervisor itself still reports on its own repository", s13c == 201 and GH["issues"]["frsorrentino/supervisor"][-1]["title"].startswith("[supervisor] "), s13c)
+
+
+# SV14-SV17 (05/11/2026, supervisor-feedback-immagine-05-11, observe-etichetta-anonimo-04-11): etichette e immagine
+import re
+import struct
+import zlib
+EXIF_MARK, TEXT_MARK = b"Exif\x00\x00GPS-45.4642N-9.1900E-camera-zq", b"Author\x00zq-png-author"
+
+
+def jpeg(w=40, h=30, pad=0):
+    seg = lambda m, d: b"\xff" + bytes([m]) + struct.pack(">H", len(d) + 2) + d  # noqa: E731
+    return (b"\xff\xd8" + seg(0xE0, b"JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00") + seg(0xE1, EXIF_MARK) + seg(0xFE, b"zq-comment")
+            + seg(0xC0, b"\x08" + struct.pack(">HH", h, w) + b"\x03\x01\x22\x00\x02\x11\x01\x03\x11\x01")
+            + seg(0xDA, b"\x03\x01\x00\x02\x11\x03\x11\x00\x3f\x00") + b"\x12\x34" * (8 + pad) + b"\xff\xd9")
+
+
+def png(w=20, h=10):
+    ch = lambda t, d: struct.pack(">I", len(d)) + t + d + struct.pack(">I", zlib.crc32(t + d))  # noqa: E731
+    return (b"\x89PNG\r\n\x1a\n" + ch(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0)) + ch(b"tEXt", TEXT_MARK)
+            + ch(b"IDAT", zlib.compress(b"\x00" + b"\x00" * (w * 3) * h)) + ch(b"IEND", b""))
+
+
+def img(b, mime="image/jpeg"):
+    return {"mime": mime, "data": base64.b64encode(b).decode()}
+
+
+reset_rate()
+GH["calls"].clear()
+T14 = "[supervisor-app] field observations: bug from the app, the list does not scroll"
+s14, j14 = call(dict(draft("supervisor-app", title=T14), labels=["app", "bug"]))
+_i14 = GH["issues"]["frsorrentino/supervisor"][-1]
+check("SV14 labels app and bug added to from-observe and anonymous", s14 == 201 and _i14["title"] == T14 and _i14["labels"] == ["from-observe", "anonymous", "app", "bug"], (s14, j14, _i14["labels"]))
+reset_rate()
+_i13 = next(i for i in GH["issues"]["frsorrentino/supervisor"] if i["title"].startswith("[supervisor-app] ") and i["title"] != T14)
+s14c, j14c = call(dict(draft("supervisor-app"), labels=["app", "suggerimento"], image=img(jpeg())))
+check("SV14 same title as an open anonymous issue: the comment carries the image's link, the issue gets the kind's labels",
+      s14c == 201 and "#issuecomment-" in j14c["url"] and "- screenshot: ![screenshot](https://raw.githubusercontent.com/frsorrentino/observe-immagini/main/" in _i13["comments"][-1]
+      and _i13["labels"] == ["from-observe", "anonymous", "app", "suggerimento"], (s14c, j14c, _i13["labels"]))
+bad14 = []
+for _l in (["wontfix"], ["app", "app"], "app", [], [1], {"a": "app"}):
+    reset_rate()
+    bad14.append(call(dict(draft("supervisor-app"), labels=_l))[0])
+reset_rate()
+GH["calls"].clear()
+bad14.append(call(dict(draft("supervisor-app", security=True), labels=["bug"]))[0])
+check("SV14 labels out of the list, double, not a list, empty, not strings, with security → 400, no GitHub call", bad14 == [400] * 7 and not GH["calls"], bad14)
+
+reset_rate()
+GH["calls"].clear()
+_before15 = set(GH["files"].get("frsorrentino/observe-immagini", {}))
+s15, j15 = call(dict(draft("supervisor-app", title="[supervisor-app] field observations: suggestion from the app, a darker theme"), labels=["app", "suggerimento"], image=img(jpeg())))
+_f15 = GH["files"].get("frsorrentino/observe-immagini", {})
+_i15 = GH["issues"]["frsorrentino/supervisor"][-1]
+_k15 = [k for k in _f15 if k not in _before15]
+_tok15 = [c[3] for c in GH["calls"] if c[1].endswith("/access_tokens")]
+_put15 = [c for c in GH["calls"] if c[0] == "PUT"]
+_up = _f15[_k15[0]] if _k15 else b""
+check("SV15 a JPEG with the draft: uploaded to frsorrentino/observe-immagini under YYYY/MM/<24 hex>.jpg, the token limited to that repo",
+      s15 == 201 and len(_k15) == 1 and re.fullmatch(r"\d{4}/\d{2}/[0-9a-f]{24}\.jpg", _k15[0]) and {"repositories": ["observe-immagini"]} in _tok15
+      and len(_put15) == 1 and _put15[0][1].startswith("/repos/frsorrentino/observe-immagini/contents/"), (s15, j15, _k15, _tok15))
+check("SV15 the uploaded JPEG has no EXIF and no comment, keeps the frame and the picture",
+      _up.startswith(b"\xff\xd8\xff\xe0") and EXIF_MARK[6:] not in _up and b"zq-comment" not in _up and b"\xff\xc0" in _up and _up.endswith(b"\x12\x34" * 8 + b"\xff\xd9"), _up[:60])
+_link = f"https://raw.githubusercontent.com/frsorrentino/observe-immagini/main/{_k15[0] if _k15 else ''}"
+check("SV15 the issue: labels app and suggerimento, the link at the end of the body, before the service's line",
+      _i15["labels"] == ["from-observe", "anonymous", "app", "suggerimento"] and f"\n- screenshot: ![screenshot]({_link})\n\n---\nSent anonymously" in _i15["body"], _i15["body"][-300:])
+reset_rate()
+s15b, _ = call(dict(draft("supervisor-app", rows=["- `y` — png"]), image=img(png(), "image/png")))
+_pf = [v for k, v in GH["files"]["frsorrentino/observe-immagini"].items() if k.endswith(".png")]
+check("SV15 a PNG: uploaded without its text chunk, IHDR, IDAT and IEND kept", s15b == 201 and len(_pf) == 1 and b"zq-png-author" not in _pf[0]
+      and all(t in _pf[0] for t in (b"IHDR", b"IDAT", b"IEND")), s15b)
+
+reset_rate()
+GH["calls"].clear()
+_ni = sum(len(v) for v in GH["issues"].values())
+s16, j16 = call({"plugin": "supervisor-app", "image": img(jpeg())})
+check("SV16 only {plugin, image}: 201 with the image's URL, no issue, no comment",
+      s16 == 201 and j16["url"].startswith("https://raw.githubusercontent.com/frsorrentino/observe-immagini/main/") and sum(len(v) for v in GH["issues"].values()) == _ni
+      and not any(c[0] == "POST" and "/issues" in c[1] for c in GH["calls"]), (s16, j16))
+bad16 = []
+GH["calls"].clear()
+for _d in ({"plugin": "chrome-bridge", "image": img(jpeg())}, {"plugin": "supervisor-app", "image": img(jpeg(), "image/gif")},
+           {"plugin": "supervisor-app", "image": img(b"GIF89a not a jpeg at all")}, {"plugin": "supervisor-app", "image": img(png())},
+           {"plugin": "supervisor-app", "image": img(jpeg(pad=530000))}, {"plugin": "supervisor-app", "image": {"mime": "image/jpeg", "data": "%%%"}},
+           dict(draft("supervisor-app", security=True), image=img(jpeg())), dict(draft("supervisor-app"), image=img(jpeg()), extra=1)):
+    reset_rate()
+    bad16.append(call(_d)[0])
+reset_rate()
+bad16.append(call(draft("supervisor-app", rows=["- `z` — " + "a" * 1900] * 40))[0])
+check("SV16 refused with no GitHub call: a plugin without images 400, gif 415, bytes that are not a jpeg 415, a png said jpeg 415, over 1 MB 413, bad base64 400, with security 400, a field more 400, over 64 KB without an image 413",
+      bad16 == [400, 415, 415, 415, 413, 400, 400, 400, 413] and not GH["calls"], bad16)
+
+write_conf(images_day=1)
+reset_rate()
+_nf0 = len(GH["files"]["frsorrentino/observe-immagini"])
+_s17 = [call({"plugin": "supervisor-app", "image": img(jpeg())})[0] for _ in range(2)]
+_nf = len(GH["files"]["frsorrentino/observe-immagini"])
+write_conf()
+check("SV17 images_day 1: the first image goes, the second → 429 and nothing more uploaded", _s17 == [201, 429] and _nf == _nf0 + 1, (_s17, _nf0, _nf))
 
 php.terminate()
 ghs.shutdown()

@@ -57,6 +57,7 @@ OB42 invio anonimo: la descrizione dell'opzione porta alla nota privacy; il rifi
 OB44 «Sempre in forma anonima»: un si' solo, spento di default, revocabile; poi solo errori, mai note (always_anonymous_consent)
 OB45 lo stesso errore tre volte nella sessione: proposta subito, una volta sola (propose_on_repeat)
 OB46 chi ha inviato vede «corretto in X» alla sessione dopo, da una voce known del plugin (fixed_notice_reported)
+OB47 send_anonymous porta labels e image; upload_image manda solo {plugin, image} e torna l'URL (05/11)
 OB43 sync.py conserva il segmento specifico del plugin fra i due marcatori di commands/observe.md (sync_preserves_segment)
 """
 import json
@@ -740,6 +741,21 @@ l29 = obs("report", "chrome-bridge", "--later")
 line29, _ = stop_line(home / "ws" / "clienti" / "acme-shop")
 p29 = start(home / "ws" / "clienti" / "acme-shop", tool=CB)
 check("OB29 «Non ora» (report --later) → the offer is silent for propose_every_days: no Stop line, no SessionStart offer", l29.returncode == 0 and "torna fra 7 giorni" in l29.stdout and line29 == "" and "DA INVIARE" not in p29, l29.stdout + line29 + p29)
+
+# OB47 (05/11/2026, supervisor-feedback-immagine-05-11): send_anonymous porta labels e image; upload_image manda solo
+# {plugin, image} e torna l'URL del servizio
+_n45 = len(EP["posts"])
+_c45 = ("import importlib.util,sys,json;s=importlib.util.spec_from_file_location('o',sys.argv[1]);m=importlib.util.module_from_spec(s);"
+        "s.loader.exec_module(m);m.endpoint=lambda t: sys.argv[2];m.tool_version=lambda *a: None;"
+        "u1=m.send_anonymous('supervisor-app',{},'[supervisor-app] field observations: x','b',[],False,labels=['app','bug'],image=('image/jpeg',b'\\xff\\xd8zq'));"
+        "u2=m.upload_image('supervisor-app','image/png',b'\\x89PNGzq');u3=m.send_anonymous('supervisor-app',{},'t','b',[],False);print(json.dumps([u1,u2,u3]))")
+_r45 = subprocess.run([sys.executable, "-c", _c45, str(OBS), EP_URL], capture_output=True, text=True, timeout=60)
+_p45 = [x[1] for x in EP["posts"][_n45:]]
+check("OB47 send_anonymous with labels and image: the payload adds labels and image {mime, data base64}; upload_image posts only {plugin, image} and returns the url; without them the six fields as before",
+      _r45.returncode == 0 and len(_p45) == 3 and _p45[0]["labels"] == ["app", "bug"] and _p45[0]["image"] == {"mime": "image/jpeg", "data": "/9h6cQ=="}
+      and _p45[1] == {"plugin": "supervisor-app", "image": {"mime": "image/png", "data": "iVBOR3px"}}
+      and sorted(_p45[2]) == ["body", "plugin", "security", "severity", "title", "version"]
+      and json.loads(_r45.stdout)[1] == "https://github.com/frsorrentino/chrome-bridge/issues/123", _r45.stdout + _r45.stderr + json.dumps(_p45)[:400])
 ep_srv.shutdown()
 
 # OB42 (27/09, il servizio anonimo): il rifiuto del servizio (429, 422…) arriva all'utente con il suo motivo; un guasto di
