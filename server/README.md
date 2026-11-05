@@ -99,15 +99,18 @@ are gone everywhere). A renamed repository keeps its id, so it
 stays in the installation with its labels and private reporting: one test publication on the new name is enough. Add it to `OBSERVE_REPOS` and to `ANON_TOOLS` in `observe.py` (OB40 checks they match). Once the
 repository exists, add it to the App's installation, then run steps a and b on it, deploy as in step d, and run step f.
 
-**The app's issues** (30/10): `supervisor-app` and `team-supervisor-app` publish on `frsorrentino/supervisor`, under the
-title `[supervisor-app] …`; their private reports stay on `frsorrentino/supervisor-app` (`OBSERVE_SECURITY_REPOS`).
+**The app's issues** (30/10; 05/11 private): `supervisor-app` and `team-supervisor-app` publish on the private
+`frsorrentino/supervisor-feedback`, under the title `[supervisor-app] …`; their private reports stay on `frsorrentino/supervisor-app` (`OBSERVE_SECURITY_REPOS`).
 
 **Labels and images** (05/11/2026, supervisor-feedback-immagine-05-11): a report may add `labels` from a closed list
 (`app`, `suggerimento`, `bug`; they must exist on the destination repository) and, for the plugins of
 `OBSERVE_IMAGE_PLUGINS` only, one `image` (JPEG or PNG, at most 1 MB, metadata stripped, 30 a day by `images_day`). The
-image goes with a random name to the public repository `OBSERVE_IMAGES_REPO` (`frsorrentino/observe-immagini`), by the
-contents API: the App needs **Contents: Read and write**, approved on the installation, and that repository in the
-installation. `{plugin, image}` alone uploads and answers the URL. An image uploaded for an issue that GitHub then
-refuses stays in the repository: delete it there by hand if needed.
+image goes with a random name under `images/` of the plugin's destination repository, by the contents API, and the link
+is `https://github.com/<repo>/raw/main/images/…` (not the API's `download_url`, which carries a token that expires in
+a private repository). Nobody cleans what an image shows, so the destination of an `OBSERVE_IMAGE_PLUGINS` plugin must be
+**private**: `supervisor-app` goes to `frsorrentino/supervisor-feedback` since 05/11. The App needs **Contents: Read and
+write**, approved on the installation, and that repository in the installation. `{plugin, image}` alone uploads and
+answers the URL. An image uploaded for an issue that GitHub then refuses stays in the repository: delete it there by hand
+if needed.
 
 To revoke the service: delete the App, or uninstall it from a repository. The key on the server then stops working.

@@ -20,8 +20,8 @@ SV12 server/check-live.sh contro un servizio acceso: tutto ok
 SV13 le issue dell'app su supervisor, le sue segnalazioni private su supervisor-app
 SV14 (05/11) labels da una lista chiusa (app, suggerimento, bug) aggiunte a from-observe e anonymous; fuori lista, doppie,
      non una lista o con security → 400 senza GitHub
-SV15 (05/11) image con la bozza di supervisor-app: JPEG e PNG caricati nel repo pubblico delle immagini, nome casuale,
-     senza EXIF, commenti e testi; il token limitato a quel repo; il link in fondo al corpo della issue
+SV15 (05/11) image con la bozza di supervisor-app: JPEG e PNG caricati sotto images/ del repo privato della issue, nome
+     casuale, senza EXIF, commenti e testi; il token limitato a quel repo; il link in fondo al corpo della issue
 SV16 (05/11) solo {plugin, image}: carica e torna l'URL, nessuna issue; rifiuti: plugin senza immagini, gif, byte che non
      sono l'immagine, oltre 1 MB, con security, una richiesta oltre 64 KB senza immagine
 SV17 (05/11) il limite delle immagini del giorno → 429, niente caricato
@@ -363,17 +363,18 @@ cl = subprocess.run(["bash", str(ROOT / "server/check-live.sh"), URL], capture_o
 check("SV12 server/check-live.sh against a running service: GET 200, non-draft POST 400, secret and state paths 403/404 → all ok",
       cl.returncode == 0 and "all ok" in cl.stdout and cl.stdout.count("ok   ") == 11, cl.stdout + cl.stderr)
 
-# SV13 (30/10, one way in): the app's issues on supervisor, under its own title; its private reports stay on supervisor-app
+# SV13 (30/10, one way in; 05/11 private): the app's issues on the private supervisor-feedback, under its own title; its
+# private reports stay on supervisor-app
 for _app in ("supervisor-app", "team-supervisor-app"):
     reset_rate()
     GH["calls"].clear()
-    _n = len(GH["issues"].get("frsorrentino/supervisor", []))
+    _n = len(GH["issues"].get("frsorrentino/supervisor-feedback", []))
     s13, j13 = call(draft(_app))
-    _i13 = GH["issues"].get("frsorrentino/supervisor", [])
+    _i13 = GH["issues"].get("frsorrentino/supervisor-feedback", [])
     _tok = [c for c in GH["calls"] if c[1].endswith("/access_tokens")]
-    check(f"SV13 {_app}: the issue goes to frsorrentino/supervisor with the title [{_app}], the token limited to supervisor; none on the app's repository",
-          s13 == 201 and "/frsorrentino/supervisor/issues/" in j13["url"] and len(_i13) == _n + 1 and _i13[-1]["title"].startswith(f"[{_app}] ")
-          and _tok[0][3] == {"repositories": ["supervisor"]} and not GH["issues"].get(f"frsorrentino/{_app}"), (s13, j13, _tok))
+    check(f"SV13 {_app}: the issue goes to the private frsorrentino/supervisor-feedback with the title [{_app}], the token limited to it; none on the app's repository",
+          s13 == 201 and "/frsorrentino/supervisor-feedback/issues/" in j13["url"] and len(_i13) == _n + 1 and _i13[-1]["title"].startswith(f"[{_app}] ")
+          and _tok[0][3] == {"repositories": ["supervisor-feedback"]} and not GH["issues"].get(f"frsorrentino/{_app}"), (s13, j13, _tok))
     reset_rate()
     GH["calls"].clear()
     s13b, j13b = call(draft(_app, security=True))
@@ -382,7 +383,7 @@ for _app in ("supervisor-app", "team-supervisor-app"):
           s13b == 201 and GH["reports"][-1][0] == "frsorrentino/supervisor-app" and _tok[0][3] == {"repositories": ["supervisor-app"]}, (s13b, j13b, _tok))
 reset_rate()
 s13c, _ = call(draft("supervisor"))
-check("SV13 supervisor itself still reports on its own repository", s13c == 201 and GH["issues"]["frsorrentino/supervisor"][-1]["title"].startswith("[supervisor] "), s13c)
+check("SV13 supervisor itself still reports on its own public repository", s13c == 201 and GH["issues"]["frsorrentino/supervisor"][-1]["title"].startswith("[supervisor] "), s13c)
 
 
 # SV14-SV17 (05/11/2026, supervisor-feedback-immagine-05-11, observe-etichetta-anonimo-04-11): etichette e immagine
@@ -413,13 +414,13 @@ reset_rate()
 GH["calls"].clear()
 T14 = "[supervisor-app] field observations: bug from the app, the list does not scroll"
 s14, j14 = call(dict(draft("supervisor-app", title=T14), labels=["app", "bug"]))
-_i14 = GH["issues"]["frsorrentino/supervisor"][-1]
+_i14 = GH["issues"]["frsorrentino/supervisor-feedback"][-1]
 check("SV14 labels app and bug added to from-observe and anonymous", s14 == 201 and _i14["title"] == T14 and _i14["labels"] == ["from-observe", "anonymous", "app", "bug"], (s14, j14, _i14["labels"]))
 reset_rate()
-_i13 = next(i for i in GH["issues"]["frsorrentino/supervisor"] if i["title"].startswith("[supervisor-app] ") and i["title"] != T14)
+_i13 = next(i for i in GH["issues"]["frsorrentino/supervisor-feedback"] if i["title"].startswith("[supervisor-app] ") and i["title"] != T14)
 s14c, j14c = call(dict(draft("supervisor-app"), labels=["app", "suggerimento"], image=img(jpeg())))
 check("SV14 same title as an open anonymous issue: the comment carries the image's link, the issue gets the kind's labels",
-      s14c == 201 and "#issuecomment-" in j14c["url"] and "- screenshot: ![screenshot](https://raw.githubusercontent.com/frsorrentino/observe-immagini/main/" in _i13["comments"][-1]
+      s14c == 201 and "#issuecomment-" in j14c["url"] and "- screenshot: ![screenshot](https://github.com/frsorrentino/supervisor-feedback/raw/main/images/" in _i13["comments"][-1]
       and _i13["labels"] == ["from-observe", "anonymous", "app", "suggerimento"], (s14c, j14c, _i13["labels"]))
 bad14 = []
 for _l in (["wontfix"], ["app", "app"], "app", [], [1], {"a": "app"}):
@@ -432,25 +433,25 @@ check("SV14 labels out of the list, double, not a list, empty, not strings, with
 
 reset_rate()
 GH["calls"].clear()
-_before15 = set(GH["files"].get("frsorrentino/observe-immagini", {}))
+_before15 = set(GH["files"].get("frsorrentino/supervisor-feedback", {}))
 s15, j15 = call(dict(draft("supervisor-app", title="[supervisor-app] field observations: suggestion from the app, a darker theme"), labels=["app", "suggerimento"], image=img(jpeg())))
-_f15 = GH["files"].get("frsorrentino/observe-immagini", {})
-_i15 = GH["issues"]["frsorrentino/supervisor"][-1]
+_f15 = GH["files"].get("frsorrentino/supervisor-feedback", {})
+_i15 = GH["issues"]["frsorrentino/supervisor-feedback"][-1]
 _k15 = [k for k in _f15 if k not in _before15]
 _tok15 = [c[3] for c in GH["calls"] if c[1].endswith("/access_tokens")]
 _put15 = [c for c in GH["calls"] if c[0] == "PUT"]
 _up = _f15[_k15[0]] if _k15 else b""
-check("SV15 a JPEG with the draft: uploaded to frsorrentino/observe-immagini under YYYY/MM/<24 hex>.jpg, the token limited to that repo",
-      s15 == 201 and len(_k15) == 1 and re.fullmatch(r"\d{4}/\d{2}/[0-9a-f]{24}\.jpg", _k15[0]) and {"repositories": ["observe-immagini"]} in _tok15
-      and len(_put15) == 1 and _put15[0][1].startswith("/repos/frsorrentino/observe-immagini/contents/"), (s15, j15, _k15, _tok15))
+check("SV15 a JPEG with the draft: uploaded to the issue's own private repository under images/YYYY/MM/<24 hex>.jpg, the token limited to it",
+      s15 == 201 and len(_k15) == 1 and re.fullmatch(r"images/\d{4}/\d{2}/[0-9a-f]{24}\.jpg", _k15[0]) and {"repositories": ["supervisor-feedback"]} in _tok15
+      and len(_put15) == 1 and _put15[0][1].startswith("/repos/frsorrentino/supervisor-feedback/contents/images/"), (s15, j15, _k15, _tok15))
 check("SV15 the uploaded JPEG has no EXIF and no comment, keeps the frame and the picture",
       _up.startswith(b"\xff\xd8\xff\xe0") and EXIF_MARK[6:] not in _up and b"zq-comment" not in _up and b"\xff\xc0" in _up and _up.endswith(b"\x12\x34" * 8 + b"\xff\xd9"), _up[:60])
-_link = f"https://raw.githubusercontent.com/frsorrentino/observe-immagini/main/{_k15[0] if _k15 else ''}"
+_link = f"https://github.com/frsorrentino/supervisor-feedback/raw/main/{_k15[0] if _k15 else ''}"   # no expiring token
 check("SV15 the issue: labels app and suggerimento, the link at the end of the body, before the service's line",
       _i15["labels"] == ["from-observe", "anonymous", "app", "suggerimento"] and f"\n- screenshot: ![screenshot]({_link})\n\n---\nSent anonymously" in _i15["body"], _i15["body"][-300:])
 reset_rate()
 s15b, _ = call(dict(draft("supervisor-app", rows=["- `y` — png"]), image=img(png(), "image/png")))
-_pf = [v for k, v in GH["files"]["frsorrentino/observe-immagini"].items() if k.endswith(".png")]
+_pf = [v for k, v in GH["files"]["frsorrentino/supervisor-feedback"].items() if k.endswith(".png")]
 check("SV15 a PNG: uploaded without its text chunk, IHDR, IDAT and IEND kept", s15b == 201 and len(_pf) == 1 and b"zq-png-author" not in _pf[0]
       and all(t in _pf[0] for t in (b"IHDR", b"IDAT", b"IEND")), s15b)
 
@@ -459,7 +460,7 @@ GH["calls"].clear()
 _ni = sum(len(v) for v in GH["issues"].values())
 s16, j16 = call({"plugin": "supervisor-app", "image": img(jpeg())})
 check("SV16 only {plugin, image}: 201 with the image's URL, no issue, no comment",
-      s16 == 201 and j16["url"].startswith("https://raw.githubusercontent.com/frsorrentino/observe-immagini/main/") and sum(len(v) for v in GH["issues"].values()) == _ni
+      s16 == 201 and j16["url"].startswith("https://github.com/frsorrentino/supervisor-feedback/raw/main/images/") and sum(len(v) for v in GH["issues"].values()) == _ni
       and not any(c[0] == "POST" and "/issues" in c[1] for c in GH["calls"]), (s16, j16))
 bad16 = []
 GH["calls"].clear()
@@ -476,9 +477,9 @@ check("SV16 refused with no GitHub call: a plugin without images 400, gif 415, b
 
 write_conf(images_day=1)
 reset_rate()
-_nf0 = len(GH["files"]["frsorrentino/observe-immagini"])
+_nf0 = len(GH["files"]["frsorrentino/supervisor-feedback"])
 _s17 = [call({"plugin": "supervisor-app", "image": img(jpeg())})[0] for _ in range(2)]
-_nf = len(GH["files"]["frsorrentino/observe-immagini"])
+_nf = len(GH["files"]["frsorrentino/supervisor-feedback"])
 write_conf()
 check("SV17 images_day 1: the first image goes, the second → 429 and nothing more uploaded", _s17 == [201, 429] and _nf == _nf0 + 1, (_s17, _nf0, _nf))
 

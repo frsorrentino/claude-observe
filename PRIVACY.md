@@ -20,12 +20,14 @@ anonymously», or after you have chosen «Always anonymous» once (see below). T
 
 Nothing else is sent: no GitHub account, no machine name, no identifier, no cookie.
 
-**The Supervisor app's Feedback** (since 5 November 2026) can also add the kind of feedback (`app`, `suggerimento`,
-`bug`, which become labels of the issue) and, only if you chose to attach it, **one image** (JPEG or PNG, at most 1 MB).
-The service removes the image's metadata (EXIF with place and camera, text fields), uploads it with a random name to the
-**public** repository `frsorrentino/observe-immagini` and puts its link in the issue: anyone can see it, like the issue.
-With «Invia dal mio GitHub» the image goes the same way first, and its link is already in the issue you open. The
-image is never sent with a security report. Look at it before sending: what it shows is published as it is.
+**The Supervisor app's Feedback** (since 5 November 2026) goes to the **private** repository
+`frsorrentino/supervisor-feedback`, which only the maintainer reads. It can add the kind of feedback (`app`,
+`suggerimento`, `bug`, which become labels of the issue) and, only if you chose to attach it, **one image** (JPEG or PNG,
+at most 1 MB). The service removes the image's metadata (EXIF with place and camera, text fields), stores it with a random
+name in that same private repository and links it in the issue. Nobody cleans what the image shows: that is why it goes
+only to a private repository. With «Invia dal mio GitHub» the image goes the same way first, and its link is already
+in the issue you open; that road works only for who can read the repository. The image is never sent with a security
+report.
 
 Like every request on the internet, this one also carries your **IP address**.
 
@@ -64,8 +66,8 @@ went out (`observe stats`). The count is a local file and is never sent.
 ## What the service does not keep
 
 - **The text.** The report is not written to disk or to any log on the server. It exists only on GitHub, where it
-  was published. The same for an image: it exists only in `frsorrentino/observe-immagini`; the service counts how many
-  it uploaded today, nothing else.
+  was published. The same for an image: it exists only in the private repository of the issue; the service counts how
+  many it uploaded today, nothing else.
 - **Your IP address.** The IP is used only to limit how many reports come from the same address (a few per hour and
   per day). For that count the service keeps a keyed hash of the IP, never the IP itself. The key is random and
   belongs to one day (UTC). A few minutes after that day ends, the key and the day's counts are deleted.
@@ -76,6 +78,7 @@ user agent `claude-observe`. It does not have the content of the report. SiteGro
 
 ## Who reads it
 
+- An issue of the Supervisor app's Feedback, with its image: the maintainer only (a private repository).
 - A public issue: anyone, like every issue on a public GitHub repository. Its text is the anonymized draft: the one you saw
   before sending, or, with «Always anonymous», one built the same way.
 - A private vulnerability report: the maintainers of the plugin only.

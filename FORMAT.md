@@ -80,7 +80,7 @@ else. The service answers JSON with `url` (the issue it opened); the records are
 retried once after 2 s. In both cases nothing was sent and the records stay unsent. Two optional fields (05/11/2026,
 for the Supervisor app's Feedback): `labels`, a list from `app`, `suggerimento`, `bug`, added to the issue's labels; and
 `image`, `{mime: image/jpeg|image/png, data: base64}` of at most 1 MB, only for the plugins the service lists and never
-with `security`: the service strips its metadata, uploads it with a random name to the public repository of the images
-and links it at the end of the body. A request with only `plugin` and `image` uploads the image and answers its `url`
+with `security`: the service strips its metadata, stores it with a random name under `images/` of the destination
+repository, which for those plugins is private, and links it at the end of the body. A request with only `plugin` and `image` uploads the image and answers its `url`
 (`upload_image`), for an issue opened with the person's own GitHub. The service is `server/report.php`,
 its privacy note PRIVACY.md. `report --later` («Not now») silences both offers for `propose_every_days`.

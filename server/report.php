@@ -19,9 +19,10 @@
  * 05/11/2026 (supervisor-feedback-immagine-05-11, observe-etichetta-anonimo-04-11): two optional fields. `labels`, from
  * a closed list (app, suggerimento, bug), added to from-observe and anonymous. `image` {mime, data base64}, only for the
  * plugins of OBSERVE_IMAGE_PLUGINS and never with a security report: a JPEG or PNG of at most 1 MB, its metadata
- * removed (EXIF, text chunks), uploaded with a random name to the public repository of the images and linked at the end
- * of the body. A request with only {plugin, image} uploads the image and answers its URL, for a client that opens the
- * issue with the person's own GitHub. The images are public: the client says so before sending.
+ * removed (EXIF, text chunks), uploaded with a random name under images/ of the plugin's own repository and linked at the
+ * end of the body. Nobody cleans what the image shows, so OBSERVE_IMAGE_PLUGINS go to a PRIVATE repository: the image
+ * is seen only by who can read the issue. A request with only {plugin, image} uploads the image and answers its URL,
+ * for a client that opens the issue with the person's own GitHub.
  */
 
 const OBSERVE_REPOS = [   // plugin → repository: the only destinations; anything else is refused
@@ -31,11 +32,12 @@ const OBSERVE_REPOS = [   // plugin → repository: the only destinations; anyth
     'claude-observe' => 'frsorrentino/claude-observe',
     'claude-master-watch' => 'frsorrentino/claude-master-watch',
     'team-supervisor' => 'frsorrentino/team-supervisor',   // claude-master's new name (07/10); both until the old one is gone
-    'team-supervisor-app' => 'frsorrentino/supervisor',   // claude-master-watch's new name (07/10), same; issues as below
+    'team-supervisor-app' => 'frsorrentino/supervisor-feedback',   // claude-master-watch's new name (07/10), same; issues as below
     'supervisor' => 'frsorrentino/supervisor',   // team-supervisor's new name (08/10); both until the old one is gone
     // team-supervisor-app's new name (08/10), same. 30/10 (one way in): the issues of the app go to supervisor, under the
-    // title «[supervisor-app] …»; its private vulnerability reports do not move, see OBSERVE_SECURITY_REPOS
-    'supervisor-app' => 'frsorrentino/supervisor',
+    // title «[supervisor-app] …»; its private vulnerability reports do not move, see OBSERVE_SECURITY_REPOS. 05/11: to the
+    // private supervisor-feedback, with their screenshots, which nobody cleans of what they show
+    'supervisor-app' => 'frsorrentino/supervisor-feedback',
 ];
 const OBSERVE_SECURITY_REPOS = [   // where a plugin's private reports go when it is not its OBSERVE_REPOS entry
     'team-supervisor-app' => 'frsorrentino/supervisor-app',
@@ -46,8 +48,7 @@ const OBSERVE_MAX_BYTES = 65536;   // the draft is at most 20 rows of ~1.5 KB
 const OBSERVE_LABELS = ['from-observe', 'anonymous'];
 const OBSERVE_EXTRA = ['labels', 'image'];   // optional, besides OBSERVE_FIELDS
 const OBSERVE_KIND_LABELS = ['app', 'suggerimento', 'bug'];   // the only labels a client may add
-const OBSERVE_IMAGE_PLUGINS = ['supervisor-app'];   // who may send an image
-const OBSERVE_IMAGES_REPO = 'frsorrentino/observe-immagini';   // public: where the images go
+const OBSERVE_IMAGE_PLUGINS = ['supervisor-app'];   // who may send an image: their OBSERVE_REPOS entry must be private
 const OBSERVE_IMAGE_MAX = 1048576;   // bytes of the image, decoded
 const OBSERVE_IMAGE_REQUEST_MAX = 1500000;   // a request with an image (base64 is 4/3 of the image)
 const OBSERVE_PRIVACY = 'https://github.com/frsorrentino/claude-observe/blob/main/PRIVACY.md';
@@ -81,7 +82,7 @@ function observe_config()
     $c = require $path;
     $c['config'] = $path;
     $c += ['github_api' => 'https://api.github.com', 'repos' => OBSERVE_REPOS, 'security_repos' => OBSERVE_SECURITY_REPOS, 'per_ip_hour' => 5, 'per_ip_day' => 10,
-           'global_day' => 50, 'privacy' => OBSERVE_PRIVACY, 'images_repo' => OBSERVE_IMAGES_REPO, 'images_day' => 30];
+           'global_day' => 50, 'privacy' => OBSERVE_PRIVACY, 'images_day' => 30];
     foreach (['app_id', 'private_key', 'state_dir'] as $k) {
         if (empty($c[$k])) {
             throw new ObserveError(503, 'the service is not configured');
@@ -361,17 +362,18 @@ function observe_images_left($c)
     }
 }
 
-/** Uploads the image to the public repository of the images, with a random name; returns its URL. */
-function observe_upload_image($c, $img)
+/** Uploads the image under images/ of the plugin's (private) repository, with a random name; returns its URL, which
+ * GitHub shows to whoever can read that repository. */
+function observe_upload_image($c, $plugin, $img)
 {
     observe_images_left($c);
     [$mime, $ext, $bytes] = $img;
-    $repo = $c['images_repo'];
-    $path = gmdate('Y/m/') . bin2hex(random_bytes(12)) . ".$ext";
+    $repo = $c['repos'][$plugin];
+    $path = 'images/' . gmdate('Y/m/') . bin2hex(random_bytes(12)) . ".$ext";
     $res = observe_gh_ok('image', observe_gh($c, 'PUT', "/repos/$repo/contents/$path", observe_token($c, $repo),
                                              ['message' => 'image', 'content' => base64_encode($bytes)]));
     observe_count_published($c, 'images');
-    return $res['content']['download_url'] ?? "https://raw.githubusercontent.com/$repo/main/$path";
+    return "https://github.com/$repo/raw/main/$path";   // not download_url: in a private repository it carries a token that expires
 }
 
 /** A second net behind the client's anonymizer: a text that still looks personal is refused, never published. */
@@ -450,7 +452,7 @@ function observe_token($c, $repo)
 function observe_publish($c, $r)
 {
     $repo = $r['security'] ? ($c['security_repos'][$r['plugin']] ?? $c['repos'][$r['plugin']]) : $c['repos'][$r['plugin']];
-    $img = isset($r['image']) ? observe_upload_image($c, $r['image']) : null;
+    $img = isset($r['image']) ? observe_upload_image($c, $r['plugin'], $r['image']) : null;
     $auth = observe_token($c, $repo);
     $body = $r['body'] . ($img ? "\n- screenshot: ![screenshot]($img)" : '');
     $labels = array_values(array_unique(array_merge(OBSERVE_LABELS, $r['labels'] ?? [])));
@@ -516,7 +518,7 @@ function observe_main()
         }
         $r = observe_validate($c, $raw);
         if (!empty($r['upload_only'])) {
-            observe_answer(201, ['url' => observe_upload_image($c, $r['image'])]);
+            observe_answer(201, ['url' => observe_upload_image($c, $r['plugin'], $r['image'])]);
             return;
         }
         if (strlen($raw) > OBSERVE_MAX_BYTES && !isset($r['image'])) {
