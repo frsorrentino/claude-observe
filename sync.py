@@ -84,11 +84,14 @@ def main(argv):
     except (OSError, ValueError):
         plugin = tool.get("name")
     mt = matcher(tool, plugin)
+    # il nome del plugin in coda a ogni comando (16/11): Claude Code fonde i comandi identici di plugin diversi e ne fa
+    # girare uno solo, che legge solo il proprio tool.json; observe.py lo ignora, serve solo a renderli diversi
     if mt:
-        hooks["PostToolUseFailure"].append({"matcher": mt, "hooks": [{"type": "command", "command": f"{CMD} hook", "timeout": 5}]})
-    hooks["SessionStart"].append({"hooks": [{"type": "command", "command": f"{CMD} session-start", "timeout": 10}]})
-    # Stop (25/09): la riga a schermo per l'utente quando la regola di proposta scatta; matcher vuoto, breve, mai blocca
-    hooks["Stop"].append({"hooks": [{"type": "command", "command": f"{CMD} stop", "timeout": 5}]})
+        hooks["PostToolUseFailure"].append({"matcher": mt, "hooks": [{"type": "command", "command": f"{CMD} hook {plugin}", "timeout": 5}]})
+    hooks["SessionStart"].append({"hooks": [{"type": "command", "command": f"{CMD} session-start {plugin}", "timeout": 10}]})
+    # Stop (25/09): la riga a schermo per l'utente quando la regola di proposta scatta; matcher vuoto, mai blocca.
+    # Sincrono: il systemMessage di un hook async va al modello, non a schermo (2.1.325); 15 s, sotto i 20 dell'hook Stop di supervisor
+    hooks["Stop"].append({"hooks": [{"type": "command", "command": f"{CMD} stop {plugin}", "timeout": 15}]})
     for ev in ("PostToolUseFailure", "SessionStart", "Stop"):
         if not hooks.get(ev):
             hooks.pop(ev, None)   # un plugin di sole skill: nessuna voce vuota nel suo hooks.json
