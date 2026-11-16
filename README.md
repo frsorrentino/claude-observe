@@ -61,7 +61,9 @@ same plugin at least `propose_every_days` days (7) pass, and the session that ma
    your SECURITY.md. Without it the report is refused and the user is told to ask you — never a public issue.
 2. `python3 sync.py <plugin-root>`: copies `observe.py` and its launcher `py.sh`, writes `observe/SOURCE`, adds the three hooks to
    `hooks/hooks.json` (PostToolUseFailure, whose matcher covers each MCP server under both names, `mcp__<server>__`
-   and the installed plugin's `mcp__plugin_<plugin>_<server>__`; SessionStart; Stop — the line on screen), and generates
+   and the installed plugin's `mcp__plugin_<plugin>_<server>__`; SessionStart; Stop — the line on screen, synchronous,
+   15 s). Each command ends with the plugin's name: Claude Code runs identical commands only once, so without it the
+   hooks of two plugins with a copy would merge into one that reads only its own `tool.json`. It also generates
    `commands/observe.md`, the `/<plugin>:observe send|send --security|list|mark|add` command, from the template in
    `commands/` (a hand-written one is left alone). The lines between the two `plugin-specific` markers at the end of
    that file belong to the plugin: a new sync keeps them. Idempotent.
