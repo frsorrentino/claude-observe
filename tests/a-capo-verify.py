@@ -67,7 +67,7 @@ def obs(*args, stdin=None):
 
 # il messaggio vero di execute_js (bozza 74959145fb), col suo a capo
 CSP = ("Evaluating a string as JavaScript violates the following Content Security Policy directive because 'unsafe-eval' is not an allowed "
-       "source of script: script-src github.githubassets.com 'sha256-AbCdEf0123='\".\n (page CSP blocks dynamic code — strip it with network_rules "
+       "source of script: script-src github.githubassets.com '<SECRET>='\".\n (page CSP blocks dynamic code — strip it with network_rules "
        "modify_header on \"content-security-policy\")")
 p = {"hook_event_name": "PostToolUseFailure", "session_id": "S-1", "cwd": str(home / "ws" / "clienti" / "acme-shop"), "tool_name": "mcp__chrome-bridge__execute_js",
      "tool_input": {"code": "eval('1')"}, "tool_use_id": "t1", "error": CSP, "is_interrupt": False, "duration_ms": 12}
