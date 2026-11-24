@@ -34,7 +34,7 @@ OB25 sync.py rifiuta una fonte con observe.py non committato; check.sh confronta
 OB26 lock occupato oltre l'attesa: la voce va in <plugin>.pending.jsonl e il prossimo scrittore la incorpora; niente si perde
 OB30 `known` col nome nudo scatta anche sul nome plugin-scoped (mcp__plugin_<plugin>_<server>__<tool>)
 OB31 lo stesso errore sotto i due nomi: un record, count 2, il nome originale negli esempi
-OB32 commands/observe.md generato: allowed-tools stretto (Bash(bash *observe/py.sh*) o Bash(<command> *)), mai Bash nudo
+OB32 commands/observe.md generato: nessun allowed-tools, ne' per il lanciatore ne' per un comando del plugin (24/11)
 OB33 sync.py: matcher PostToolUseFailure con nome nudo e plugin-scoped per ogni server MCP, senza doppioni
 OB34 py.sh (Windows, 27/09): salta un python3 che esce 9009 (l'alias dello Store), poi python, poi py -3; PYTHONUTF8;
      scelta in cache; senza Python una riga su stderr e uscita 0; l'hook scritto da sync.py registra attraverso py.sh
@@ -879,19 +879,21 @@ check("OB31 the same error under the bare and the plugin-scoped name → one rec
       len(r31) == 1 and r31[0]["count"] == 2 and r31[0]["call"] == "mcp__chrome-bridge__scroll"
       and [e.get("call") for e in r31[0]["examples"]] == ["mcp__chrome-bridge__scroll", SCOPED + "scroll"], json.dumps(r31)[:600])
 
-# OB32: allowed-tools del comando generato: mai «Bash» nudo (il portale della directory lo mette in hold), la forma
-# stretta del comando che il file lancia davvero
+# OB32 (24/11): il comando generato non ha allowed-tools, ne' per il lanciatore ne' per un comando del plugin: la
+# directory trattiene ogni permesso preapprovato («Pre-approved tools are limited beside a dependency install»).
+# Fino al 24/11 il lanciatore aveva la forma stretta del suo comando, mai «Bash» nudo
 cmd32 = (plug2 / "commands" / "observe.md").read_text()
 plug32 = tmp / "plugin-cmd"
 (plug32 / "observe").mkdir(parents=True)
 (plug32 / "observe" / "tool.json").write_text(CM.read_text())
 sync32 = subprocess.run([sys.executable, str(SRC1 / "sync.py"), str(plug32)], capture_output=True, text=True)
 cmd32b = (plug32 / "commands" / "observe.md").read_text() if sync32.returncode == 0 else ""
-check("OB32 generated observe.md: allowed-tools = the launcher's exact command, quoted, with the plugin root (the portal holds relative paths and wildcards in the path, 06/10); a plugin command (a name in the PATH) gets no allowed-tools; never bare Bash",
-      '\nallowed-tools: Bash(bash "${CLAUDE_PLUGIN_ROOT}/observe/py.sh" "${CLAUDE_PLUGIN_ROOT}/observe/observe.py":*)\n' in cmd32
-      and 'bash "${CLAUDE_PLUGIN_ROOT}/observe/py.sh" "${CLAUDE_PLUGIN_ROOT}/observe/observe.py" ${ARGUMENTS}' in cmd32
-      and "allowed-tools" not in cmd32b and cmd32b.startswith("---\ndescription:") and "*observe/py.sh*" not in cmd32 + cmd32b
-      and "\nallowed-tools: Bash\n" not in cmd32 + cmd32b, cmd32[:300] + cmd32b[:300] + sync32.stderr)
+check("OB32 generated observe.md: no allowed-tools, neither for the launcher nor for a plugin command (the directory holds every pre-approved tool, 24/11); the frontmatter is the description alone; the launcher's command is still the one the file runs",
+      "allowed-tools" not in cmd32 + cmd32b
+      and cmd32.startswith("---\ndescription:") and cmd32.split("\n")[2] == "---"
+      and cmd32b.startswith("---\ndescription:") and cmd32b.split("\n")[2] == "---"
+      and 'bash "${CLAUDE_PLUGIN_ROOT}/observe/py.sh" "${CLAUDE_PLUGIN_ROOT}/observe/observe.py" ${ARGUMENTS}' in cmd32,
+      cmd32[:300] + cmd32b[:300] + sync32.stderr)
 
 # OB34 (06/10, dalla revisione della directory): l'anonimizzatore del plugin stesso, accanto alla copia di observe,
 # prima di quello di un'altra versione installata nelle cache

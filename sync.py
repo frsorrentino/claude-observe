@@ -99,17 +99,13 @@ def main(argv):
     # il comando /<plugin>:observe (send, list, mark, add…), uguale in ogni plugin: generato dal modello della fonte se
     # manca o se e' una copia generata; un file scritto a mano resta com'e', con un avviso
     cmd_f = root / "commands" / "observe.md"
-    # allowed-tools: il solo comando che il file lancia (anche le opzioni di send sono «<cmd> report …»), mai Bash nudo:
-    # il portale della directory lo mette in hold come «Allowed tools broad» (26/09). Il lanciatore: bash seguito dal
-    # percorso di py.sh, qualunque sia la radice del plugin (anche C:\… su Windows)
-    # 06/10 (dalla directory, provato da chrome-bridge con `claude -p` in dontAsk): il portale trattiene anche un percorso
-    # relativo o un jolly nel percorso. Per il lanciatore la forma esatta, con le virgolette e la radice del plugin
-    # (senza virgolette il comando viene negato); per un comando del plugin (un nome nel PATH) nessun allowed-tools:
-    # non lo si puo' legare a un percorso, e il comando chiede il permesso come ogni altro Bash
+    # nessun allowed-tools, per nessun plugin (24/11): la directory trattiene ogni permesso preapprovato che non sia
+    # l'installazione delle dipendenze («Pre-approved tools are limited beside a dependency install», su chrome-bridge
+    # 1.32.8), anche la forma esatta del lanciatore che passava il 06/10. Il comando chiede il permesso Bash come ogni
+    # altro. Le tappe di prima: 26/09 Bash nudo trattenuto come «Allowed tools broad»; 06/10 trattenuti anche un percorso
+    # relativo o un jolly nel percorso, passava solo il comando esatto con le virgolette e la radice del plugin
     cmd = tool.get("command") or CMD
-    allowed = f"Bash({CMD}:*)" if cmd == CMD else None
     text = (SRC / "commands" / "observe.md").read_text(encoding="utf-8").replace("{name}", tool["name"]).replace("{cmd}", cmd)
-    text = text.replace("{allowed}", allowed) if allowed else text.replace("allowed-tools: {allowed}\n", "")
     mine = "\n"
     if cmd_f.exists():
         m = re.search(re.escape(SEG_START) + "(.*?)" + re.escape(SEG_END), cmd_f.read_text(encoding="utf-8"), re.S)
